@@ -180,13 +180,13 @@ int main()
     
     
     // Create a generic position, textureUV VAO which can be reused by other attribute streams that have the same format
-    GLAttributeFormat attribute_formats[2] = {{3, GL_FLOAT, GL_FALSE, 0, 0}, {2, GL_FLOAT, GL_FALSE, 0, 3 * 4}};
+    GLAttributeFormat attribute_formats[2] = {{3, GL_FLOAT, GL_FALSE, 0, 0}, {2, GL_FLOAT, GL_FALSE, 3 * 4, 0}};
     GLInterleavedAttributesVAO vao = gl_create_interleaved_attributes_vao(attribute_formats, ARRAY_LENGTH(attribute_formats));
     
     // Upload attribute stream data to GPU
     GLVertexAttributesData attributes_data = gl_create_vertex_attributes_data(global_cube_vertex_data, ARRAY_LENGTH(global_cube_vertex_data), global_cube_index_data, ARRAY_LENGTH(global_cube_index_data));
     
-    gl_bind_vao(&vao, attributes_data);
+    gl_bind_vao(&vao, &attributes_data);
     while (!glfwWindowShouldClose(window))
     {
         frame_start(window);

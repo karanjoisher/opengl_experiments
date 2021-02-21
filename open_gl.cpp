@@ -123,12 +123,12 @@ GLVertexAttributesData gl_create_vertex_attributes_data(void *vertex_data, u32 v
 }
 
 
-void gl_bind_vao(GLInterleavedAttributesVAO *vao, GLVertexAttributesData attributes_data)
+void gl_bind_vao(GLInterleavedAttributesVAO *vao, GLVertexAttributesData *attributes_data)
 {
     GL(glBindVertexArray(vao->handle));
-    GL(glBindVertexBuffer(vao->source_buffer_binding_point, attributes_data.vbo, 0, vao->stride));
-    if(attributes_data.ebo)
+    GL(glBindVertexBuffer(vao->source_buffer_binding_point, attributes_data->vbo, 0, vao->stride));
+    if(attributes_data->ebo)
     {
-        GL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, attributes_data.ebo));
+        GL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, attributes_data->ebo));
     }
 }

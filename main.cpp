@@ -22,79 +22,42 @@
 
 f32 global_third = (1.0f/3.0f);
 f32 global_cube_vertex_data[] = {
-    //// Local Coordinates
+    //// Local Space Coordinates, Texture UVs
     // Front face
-    .5f, -.5f,  .5f, //A
-    .5f,  .5f,  .5f, //B 
-    -.5f,  .5f,  .5f, //C
-    -.5f, -.5f,  .5f, //D
+    .5f, -.5f,  .5f,  global_third, 0.5f, //A
+    .5f,  .5f,  .5f,  global_third, 1.0f, //B 
+    -.5f,  .5f,  .5f, 0.0f, 1.0f, //C
+    -.5f, -.5f,  .5f, 0.0f, 0.5f, //D
     
     // Rear face
-    .5f, -.5f, -.5f, //E
-    .5f,  .5f, -.5f, //F
-    -.5f,  .5f, -.5f, //G
-    -.5f, -.5f, -.5f, //H
+    .5f, -.5f, -.5f,  global_third, .5f,//E
+    .5f,  .5f, -.5f,  global_third, 1.f,//F
+    -.5f,  .5f, -.5f, 2.f*global_third, 1.f, //G
+    -.5f, -.5f, -.5f, 2.f*global_third, .5f, //H
     
     // Right face
-    .5f,  .5f,  .5f, //B
-    .5f, -.5f,  .5f, //A
-    .5f, -.5f, -.5f, //E
-    .5f,  .5f, -.5f, //F
+    .5f,  .5f,  .5f, .0f, .5f,//B
+    .5f, -.5f,  .5f, .0f, .0f,//A
+    .5f, -.5f, -.5f, global_third, .0f,//E
+    .5f,  .5f, -.5f, global_third, .5f,//F
     
     // Left face
-    -.5f, -.5f,  .5f, //D
-    -.5f,  .5f,  .5f, //C
-    -.5f,  .5f, -.5f, //G
-    -.5f, -.5f, -.5f, //H
+    -.5f, -.5f,  .5f, 1.f, .5f,//D
+    -.5f,  .5f,  .5f, 1.f, 1.f,//C
+    -.5f,  .5f, -.5f, 2.f*global_third, 1.f,//G
+    -.5f, -.5f, -.5f, 2.f*global_third, .5f,//H
     
     // Top face
-    .5f,  .5f,  .5f, //B 
-    .5f,  .5f, -.5f, //F
-    -.5f,  .5f, -.5f, //G
-    -.5f,  .5f,  .5f, //C
+    .5f,  .5f,  .5f, 2.f*global_third, .0f,//B 
+    .5f,  .5f, -.5f, 2.f*global_third, .5f,//F
+    -.5f,  .5f, -.5f,global_third, .5f, //G
+    -.5f,  .5f,  .5f,global_third, .0f, //C
     
     // Bottom face
-    .5f, -.5f,  .5f, //A
-    .5f, -.5f, -.5f, //E
-    -.5f, -.5f, -.5f, //H
-    -.5f, -.5f,  .5f, //D
-    
-    //// UVs
-    // Front face
-    global_third, 0.5f,
-    global_third, 1.0f,
-    0.0f, 1.0f,
-    0.0f, 0.5f,
-    
-    //// Rear face
-    global_third, .5f,
-    global_third, 1.f,
-    2.f*global_third, 1.f,
-    2.f*global_third, .5f,
-    
-    //// Right face
-    .0f, .5f,
-    .0f, .0f,
-    global_third, .0f,
-    global_third, .5f,
-    
-    //// Left face
-    1.f, .5f,
-    1.f, 1.f,
-    2.f*global_third, 1.f,
-    2.f*global_third, .5f,
-    
-    //// Top face
-    2.f*global_third, .0f,
-    2.f*global_third, .5f,
-    global_third, .5f,
-    global_third, .0f,
-    
-    //// Bottom face
-    1.f, .5f,
-    1.f, .0f,
-    2.f*global_third, .0f,
-    2.f*global_third, .5f
+    .5f, -.5f,  .5f,  1.f, .5f,//A
+    .5f, -.5f, -.5f,  1.f, .0f,//E
+    -.5f, -.5f, -.5f, 2.f*global_third, .0f, //H
+    -.5f, -.5f,  .5f, 2.f*global_third, .5f //D
 };
 
 

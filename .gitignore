@@ -1,0 +1,7 @@
+.vs
+*.obj
+*.ini
+*.cap
+*.pdb
+*.sln
+logs/

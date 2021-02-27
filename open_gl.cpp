@@ -2,7 +2,6 @@
 #include "logging.h"
 #define GL(f) f; gl_log_errors(#f, __FILE__, __LINE__) 
 
-
 struct GLAttributeFormat
 {
     GLint num_components;
@@ -115,6 +114,7 @@ GLVertexAttributesData gl_create_vertex_attributes_data(void *vertex_data, u32 v
         GL(glGenBuffers(1, &(result.ebo)));
         GL(glBindBuffer(GL_ARRAY_BUFFER, result.ebo));
         GL(glBufferData(GL_ARRAY_BUFFER, index_data_size, index_data, GL_STATIC_DRAW));
+        result.num_indices = index_data_size;
     }
     
     GL(glBindBuffer(GL_ARRAY_BUFFER, 0));
@@ -131,4 +131,48 @@ void gl_bind_vao(GLInterleavedAttributesVAO *vao, GLVertexAttributesData *attrib
     {
         GL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, attributes_data->ebo));
     }
+}
+
+GLuint gl_create_program(char *vertex_source, char *fragment_source)
+{
+    GLuint vs, fs, program_id;
+    
+    GL(vs = glCreateShader(GL_VERTEX_SHADER));
+    GL(glShaderSource(vs, 1, &vertex_source, 0));
+    GL(glCompileShader(vs));
+    
+    GL(fs = glCreateShader(GL_FRAGMENT_SHADER));
+    GL(glShaderSource(fs, 1, &fragment_source, 0));
+    GL(glCompileShader(fs));
+    
+    GL(program_id = glCreateProgram());
+    GL(glAttachShader(program_id, vs));
+    GL(glAttachShader(program_id, fs));
+    GL(glLinkProgram(program_id));
+    
+    GL(glValidateProgram(program_id));
+    GLint linked = false;
+    GL(glGetProgramiv(program_id, GL_LINK_STATUS, &linked));
+    
+    if(!linked)
+    {
+        GLsizei ignored;
+        char errors[4096];
+        
+        GL(glGetShaderInfoLog(vs, sizeof(errors), &ignored, errors));
+        LOG_ERR("Vertex shader compilation error: %s", errors);
+        
+        GL(glGetShaderInfoLog(fs, sizeof(errors), &ignored, errors));
+        LOG_ERR("Fragment shader compilation error: %s", errors);
+        
+        GL(glGetProgramInfoLog(program_id, sizeof(errors), &ignored, errors));
+        LOG_ERR("Program linking error: %s", errors);
+        
+        ASSERT(false, "OpenGL Program creation failed");
+    }
+    
+    GL(glDeleteShader(vs));
+    GL(glDeleteShader(fs));
+    
+    return program_id;
 }

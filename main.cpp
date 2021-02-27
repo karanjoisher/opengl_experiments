@@ -11,6 +11,7 @@
 #include "file_utility.cpp"
 #include "malloc.h"
 #include "open_gl.cpp"
+#include "gl_programs.cpp"
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
@@ -20,44 +21,50 @@
 
 #define ARRAY_LENGTH(a) (sizeof(a)/sizeof(a[0]))
 
-f32 global_third = (1.0f/3.0f);
+
+struct OpenGLContext
+{
+    StandardShaderProgram standard_shader_program;
+};
+
+OpenGLContext global_opengl_context = {};
 f32 global_cube_vertex_data[] = {
     //// Local Space Coordinates, Texture UVs
     // Front face
-    .5f, -.5f,  .5f,  global_third, 0.5f, //A
-    .5f,  .5f,  .5f,  global_third, 1.0f, //B 
+    .5f, -.5f,  .5f,  (1.0f/3.0f), 0.5f, //A
+    .5f,  .5f,  .5f,  (1.0f/3.0f), 1.0f, //B 
     -.5f,  .5f,  .5f, 0.0f, 1.0f, //C
     -.5f, -.5f,  .5f, 0.0f, 0.5f, //D
     
     // Rear face
-    .5f, -.5f, -.5f,  global_third, .5f,//E
-    .5f,  .5f, -.5f,  global_third, 1.f,//F
-    -.5f,  .5f, -.5f, 2.f*global_third, 1.f, //G
-    -.5f, -.5f, -.5f, 2.f*global_third, .5f, //H
+    .5f, -.5f, -.5f,  (1.0f/3.0f), .5f,//E
+    .5f,  .5f, -.5f,  (1.0f/3.0f), 1.f,//F
+    -.5f,  .5f, -.5f, 2.f*(1.0f/3.0f), 1.f, //G
+    -.5f, -.5f, -.5f, 2.f*(1.0f/3.0f), .5f, //H
     
     // Right face
     .5f,  .5f,  .5f, .0f, .5f,//B
     .5f, -.5f,  .5f, .0f, .0f,//A
-    .5f, -.5f, -.5f, global_third, .0f,//E
-    .5f,  .5f, -.5f, global_third, .5f,//F
+    .5f, -.5f, -.5f, (1.0f/3.0f), .0f,//E
+    .5f,  .5f, -.5f, (1.0f/3.0f), .5f,//F
     
     // Left face
     -.5f, -.5f,  .5f, 1.f, .5f,//D
     -.5f,  .5f,  .5f, 1.f, 1.f,//C
-    -.5f,  .5f, -.5f, 2.f*global_third, 1.f,//G
-    -.5f, -.5f, -.5f, 2.f*global_third, .5f,//H
+    -.5f,  .5f, -.5f, 2.f*(1.0f/3.0f), 1.f,//G
+    -.5f, -.5f, -.5f, 2.f*(1.0f/3.0f), .5f,//H
     
     // Top face
-    .5f,  .5f,  .5f, 2.f*global_third, .0f,//B 
-    .5f,  .5f, -.5f, 2.f*global_third, .5f,//F
-    -.5f,  .5f, -.5f,global_third, .5f, //G
-    -.5f,  .5f,  .5f,global_third, .0f, //C
+    .5f,  .5f,  .5f, 2.f*(1.0f/3.0f), .0f,//B 
+    .5f,  .5f, -.5f, 2.f*(1.0f/3.0f), .5f,//F
+    -.5f,  .5f, -.5f,(1.0f/3.0f), .5f, //G
+    -.5f,  .5f,  .5f,(1.0f/3.0f), .0f, //C
     
     // Bottom face
     .5f, -.5f,  .5f,  1.f, .5f,//A
     .5f, -.5f, -.5f,  1.f, .0f,//E
-    -.5f, -.5f, -.5f, 2.f*global_third, .0f, //H
-    -.5f, -.5f,  .5f, 2.f*global_third, .5f //D
+    -.5f, -.5f, -.5f, 2.f*(1.0f/3.0f), .0f, //H
+    -.5f, -.5f,  .5f, 2.f*(1.0f/3.0f), .5f //D
 };
 
 
@@ -95,6 +102,8 @@ GLFWwindow* startup(u32 window_width, u32 window_height)
     if (GLEW_OK != err){fprintf(stderr, "GLEW_ERROR: %s\n", glewGetErrorString(err));}
     
     GL(glViewport(0, 0, window_width, window_height));
+    global_opengl_context.standard_shader_program = create_standard_shader_program();
+    
     
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
@@ -149,6 +158,7 @@ int main()
     // Upload attribute stream data to GPU
     GLVertexAttributesData attributes_data = gl_create_vertex_attributes_data(global_cube_vertex_data, ARRAY_LENGTH(global_cube_vertex_data), global_cube_index_data, ARRAY_LENGTH(global_cube_index_data));
     
+    
     gl_bind_vao(&vao, &attributes_data);
     while (!glfwWindowShouldClose(window))
     {
@@ -156,7 +166,9 @@ int main()
         
         GL(glClearColor(1.0f, 0.0f, 0.0f, 1.0f));
         GL(glClear(GL_COLOR_BUFFER_BIT));
-        GL(glDrawElements(GL_TRIANGLES, ARRAY_LENGTH(global_cube_index_data), GL_UNSIGNED_INT, 0));
+        
+        use_standard_shader_program(&(global_opengl_context.standard_shader_program), 0.0f, 1.0f, 0.0f, 1.0f);
+        GL(glDrawElements(GL_TRIANGLES, attributes_data.num_indices, GL_UNSIGNED_INT, 0));
         
         frame_end(window);
     }

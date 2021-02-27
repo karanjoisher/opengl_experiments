@@ -7,10 +7,8 @@ struct StandardShaderProgram
 };
 
 
-StandardShaderProgram create_standard_shader_program()
+void create_standard_shader_program(StandardShaderProgram *standard_shader_program)
 {
-    StandardShaderProgram standard_shader_program = {};
-    
     char *vertex_source = R"FOO(
     
 #version 330 core
@@ -37,11 +35,9 @@ FragColor = vertex_color;
 }
 )FOO";
     
-    standard_shader_program.program_id = gl_create_program(vertex_source, fragment_source);
+    standard_shader_program->program_id = gl_create_program(vertex_source, fragment_source);
     
-    GL(standard_shader_program.vertex_color = glGetUniformLocation(standard_shader_program.program_id, "vertex_color"));
-    
-    return standard_shader_program;
+    GL(standard_shader_program->vertex_color = glGetUniformLocation(standard_shader_program->program_id, "vertex_color"));
 }
 
 

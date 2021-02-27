@@ -114,7 +114,7 @@ GLVertexAttributesData gl_create_vertex_attributes_data(void *vertex_data, u32 v
         GL(glGenBuffers(1, &(result.ebo)));
         GL(glBindBuffer(GL_ARRAY_BUFFER, result.ebo));
         GL(glBufferData(GL_ARRAY_BUFFER, index_data_size, index_data, GL_STATIC_DRAW));
-        result.num_indices = index_data_size;
+        result.num_indices = index_data_size/sizeof(u32);
     }
     
     GL(glBindBuffer(GL_ARRAY_BUFFER, 0));

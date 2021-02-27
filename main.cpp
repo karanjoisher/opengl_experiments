@@ -102,8 +102,7 @@ GLFWwindow* startup(u32 window_width, u32 window_height)
     if (GLEW_OK != err){fprintf(stderr, "GLEW_ERROR: %s\n", glewGetErrorString(err));}
     
     GL(glViewport(0, 0, window_width, window_height));
-    global_opengl_context.standard_shader_program = create_standard_shader_program();
-    
+    create_standard_shader_program(&(global_opengl_context.standard_shader_program));
     
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
@@ -156,14 +155,13 @@ int main()
     GLInterleavedAttributesVAO vao = gl_create_interleaved_attributes_vao(attribute_formats, ARRAY_LENGTH(attribute_formats));
     
     // Upload attribute stream data to GPU
-    GLVertexAttributesData attributes_data = gl_create_vertex_attributes_data(global_cube_vertex_data, ARRAY_LENGTH(global_cube_vertex_data), global_cube_index_data, ARRAY_LENGTH(global_cube_index_data));
+    GLVertexAttributesData attributes_data = gl_create_vertex_attributes_data(global_cube_vertex_data, sizeof(global_cube_vertex_data), global_cube_index_data, sizeof(global_cube_index_data));
     
     
     gl_bind_vao(&vao, &attributes_data);
     while (!glfwWindowShouldClose(window))
     {
         frame_start(window);
-        
         GL(glClearColor(1.0f, 0.0f, 0.0f, 1.0f));
         GL(glClear(GL_COLOR_BUFFER_BIT));
         

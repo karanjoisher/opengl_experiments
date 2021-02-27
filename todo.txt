@@ -1,8 +1,8 @@
 [X] Understand what state is store inside of a VAO. After that we can write a first pass of function that creates vertex buffer so that we have less of a cluter.
 [] Render a cube
 {
-    [] Setup vertex and fragment shaders
-    
+    [X] Setup vertex and fragment shaders
+    [] Setup textures
 }
 [] Implement and understand perspective projection
 [] Fix Aspect Ratio, it should render a cube not a cuboid

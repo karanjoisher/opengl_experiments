@@ -1,5 +1,6 @@
 #pragma once
 #include "logging.h"
+#include "stb_image.h"
 #define GL(f) f; gl_log_errors(#f, __FILE__, __LINE__) 
 
 struct GLAttributeFormat
@@ -175,4 +176,37 @@ GLuint gl_create_program(char *vertex_source, char *fragment_source)
     GL(glDeleteShader(fs));
     
     return program_id;
+}
+
+
+GLuint gl_create_texture2d(char *image_path, GLint format, GLenum channel_data_type)
+{
+    GLuint texture_id;
+    stbi_set_flip_vertically_on_load(true);
+    s32 image_width, image_height, image_channels;
+    u8 *image_data = stbi_load(image_path, &image_width, &image_height, &image_channels, 0);
+    
+    GL(glGenTextures(1, &texture_id));
+    GL(glBindTexture(GL_TEXTURE_2D, texture_id));
+    
+    GL(glTexImage2D(GL_TEXTURE_2D, 0, format, image_width, image_height, 0, format, channel_data_type, image_data));
+    GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT));
+    GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT));
+    GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
+    GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+    
+    stbi_image_free(image_data);
+    
+    GL(glBindTexture(GL_TEXTURE_2D, 0));
+    
+    return texture_id;
+}
+
+void gl_set_uniform_1i(GLuint program_id, char *uniform_name, s32 value)
+{
+    GL(glUseProgram(program_id));
+    GL(u32 uniform_location = glGetUniformLocation(program_id, uniform_name));
+    GL(glUniform1i(uniform_location, value));
+    // TODO(Karan): Instead of setting to 0 consider setting the current program to the program that was bound before this function was called
+    GL(glUseProgram(0));
 }

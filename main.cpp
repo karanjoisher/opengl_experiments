@@ -21,13 +21,14 @@
 
 #define ARRAY_LENGTH(a) (sizeof(a)/sizeof(a[0]))
 
-
 struct OpenGLContext
 {
     StandardShaderProgram standard_shader_program;
+    GLuint container_texture_id;
 };
 
 OpenGLContext global_opengl_context = {};
+
 f32 global_cube_vertex_data[] = {
     //// Local Space Coordinates, Texture UVs
     // Front face
@@ -78,9 +79,21 @@ u32 global_cube_index_data[]  =
     20, 21, 22, 22, 23, 20
 };
 
-void framebuffer_size_callback(GLFWwindow* window, int width, int height)
+void framebuffer_size_callback(GLFWwindow* window, int window_width, int window_height)
 {
-    glViewport(0, 0, width, height);
+    u32 min_dimension, x_padding = 0, y_padding = 0;
+    if(window_width < window_height)
+    {
+        min_dimension = window_width;
+        y_padding = (window_height - window_width)/2;
+    }
+    else
+    {
+        min_dimension = window_height;
+        x_padding = (window_width - window_height)/2;
+    }
+    
+    GL(glViewport(x_padding, y_padding, min_dimension, min_dimension));
 } 
 
 
@@ -101,8 +114,15 @@ GLFWwindow* startup(u32 window_width, u32 window_height)
     GLenum err = glewInit();
     if (GLEW_OK != err){fprintf(stderr, "GLEW_ERROR: %s\n", glewGetErrorString(err));}
     
-    GL(glViewport(0, 0, window_width, window_height));
+    GL(glEnable(GL_DEPTH_TEST));
+    //GL(glDepthFunc(GL_GREATER));
+    //GL(glClearDepth(0.0f));
+    GL(glClearColor(1.0f, 0.0f, 0.0f, 1.0f));
+    
+    framebuffer_size_callback(window, window_width, window_height);
+    
     create_standard_shader_program(&(global_opengl_context.standard_shader_program));
+    global_opengl_context.container_texture_id = gl_create_texture2d("container_cube.jpg", GL_RGB, GL_UNSIGNED_BYTE);
     
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
@@ -151,7 +171,7 @@ int main()
     
     
     // Create a generic position, textureUV VAO which can be reused by other attribute streams that have the same format
-    GLAttributeFormat attribute_formats[2] = {{3, GL_FLOAT, GL_FALSE, 0, 0}, {2, GL_FLOAT, GL_FALSE, 3 * 4, 0}};
+    GLAttributeFormat attribute_formats[2] = {{3, GL_FLOAT, GL_FALSE, 0, 0}, {2, GL_FLOAT, GL_FALSE, 3 * sizeof(f32), 0}};
     GLInterleavedAttributesVAO vao = gl_create_interleaved_attributes_vao(attribute_formats, ARRAY_LENGTH(attribute_formats));
     
     // Upload attribute stream data to GPU
@@ -162,12 +182,10 @@ int main()
     while (!glfwWindowShouldClose(window))
     {
         frame_start(window);
-        GL(glClearColor(1.0f, 0.0f, 0.0f, 1.0f));
-        GL(glClear(GL_COLOR_BUFFER_BIT));
         
-        use_standard_shader_program(&(global_opengl_context.standard_shader_program), 0.0f, 1.0f, 0.0f, 1.0f);
+        GL(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
+        use_standard_shader_program(&(global_opengl_context.standard_shader_program), global_opengl_context.container_texture_id);
         GL(glDrawElements(GL_TRIANGLES, attributes_data.num_indices, GL_UNSIGNED_INT, 0));
-        
         frame_end(window);
     }
     

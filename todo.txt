@@ -3,6 +3,9 @@
 {
     [X] Setup vertex and fragment shaders
     [] Setup textures
+    {
+        [] Consider adding mipmaps
+    }
 }
 [] Implement and understand perspective projection
 [] Fix Aspect Ratio, it should render a cube not a cuboid

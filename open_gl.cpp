@@ -1,7 +1,12 @@
 #pragma once
 #include "logging.h"
 #include "stb_image.h"
+
+#ifdef GL_CHECK_ERRORS
 #define GL(f) f; gl_log_errors(#f, __FILE__, __LINE__) 
+#else
+#define GL(f) f;
+#endif
 
 struct GLAttributeFormat
 {
@@ -25,35 +30,6 @@ struct GLVertexAttributesData
     GLuint ebo;
     GLuint num_indices;
 };
-
-#if 0
-int gl_get_compile_link_status_if_not_success_log_err(u32 shader_or_program, Shader_Type type)
-{
-    int  success;
-    char info_log[512];
-    char *step = 0;
-    char *compilation = "Compilation step";
-    char *linking  = "Linking step";
-    if(type == Shader_Type_shader)
-    {
-        
-        u32 shader = shader_or_program;
-        glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
-        if(!success) glGetShaderInfoLog(shader, 512, NULL, info_log);
-        step = compilation;
-    }
-    else
-    {
-        u32 program = shader_or_program;
-        glGetProgramiv(program, GL_LINK_STATUS, &success);
-        if(!success) glGetProgramInfoLog(program, 512, NULL, info_log);
-        step = linking;
-    }
-    
-    if(!success) LOG_ERR("%s failed: %s\n", step, info_log);
-    return success;
-}
-#endif
 
 void gl_log_errors(char *function_invocation_expression, char *file, s32 line)
 {
@@ -204,9 +180,10 @@ GLuint gl_create_texture2d(char *image_path, GLint format, GLenum channel_data_t
 
 void gl_set_uniform_1i(GLuint program_id, char *uniform_name, s32 value)
 {
+    GLuint currently_bound_program_id;
+    GL(glGetIntegerv(GL_CURRENT_PROGRAM, (GLint*)&currently_bound_program_id));
     GL(glUseProgram(program_id));
     GL(u32 uniform_location = glGetUniformLocation(program_id, uniform_name));
     GL(glUniform1i(uniform_location, value));
-    // TODO(Karan): Instead of setting to 0 consider setting the current program to the program that was bound before this function was called
-    GL(glUseProgram(0));
+    GL(glUseProgram(currently_bound_program_id));
 }

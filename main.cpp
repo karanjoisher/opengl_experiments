@@ -141,7 +141,7 @@ GLFWwindow* startup(u32 window_width, u32 window_height)
 
 inline void frame_start(GLFWwindow *window)
 {
-    bool show_demo_window = false;
+    bool show_demo_window = true;
     glfwPollEvents();
     if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) glfwSetWindowShouldClose(window, true);
     // Start the Dear ImGui frame
@@ -173,7 +173,6 @@ int main()
     
     // Upload attribute stream data to GPU
     GLVertexAttributesData attributes_data = gl_create_vertex_attributes_data(global_cube_vertex_data, sizeof(global_cube_vertex_data), global_cube_index_data, sizeof(global_cube_index_data));
-    
     
     gl_bind_vao(&vao, &attributes_data);
     while (!glfwWindowShouldClose(window))

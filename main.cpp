@@ -3,13 +3,12 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <stdio.h>
+
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
 #include "types.h"
-#include "file_utility.cpp"
-#include "malloc.h"
 #include "open_gl.cpp"
 #include "gl_programs.cpp"
 #define STB_IMAGE_IMPLEMENTATION

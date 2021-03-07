@@ -4,12 +4,16 @@
 #include <GLFW/glfw3.h>
 
 #define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
+#include <stb_image.h>
 #undef STB_IMAGE_IMPLEMENTATION
+
+#define HANDMADE_MATH_IMPLEMENTATION
+#include <HandmadeMath.h>
+#undef HANDMADE_MATH_IMPLEMENTATION
+
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
-
 
 #include "types.h"
 #include "open_gl.cpp"
@@ -18,13 +22,15 @@
 
 #define ARRAY_LENGTH(a) (sizeof(a)/sizeof(a[0]))
 
-struct OpenGLContext
+struct State
 {
     StandardShaderProgram standard_shader_program;
     GLuint container_texture_id;
+    hmm_v3 cube_translation;
+    bool show_demo_window;
 };
 
-OpenGLContext global_opengl_context = {};
+State global_state = {};
 
 f32 global_cube_vertex_data[] = {
     //// Local Space Coordinates, Texture UVs
@@ -118,8 +124,9 @@ GLFWwindow* startup(u32 window_width, u32 window_height)
     
     framebuffer_size_callback(window, window_width, window_height);
     
-    create_standard_shader_program(&(global_opengl_context.standard_shader_program));
-    global_opengl_context.container_texture_id = gl_create_texture2d("container_cube.jpg", GL_RGB, GL_UNSIGNED_BYTE);
+    create_standard_shader_program(&(global_state.standard_shader_program));
+    global_state.show_demo_window = true;
+    global_state.container_texture_id = gl_create_texture2d("container_cube.jpg", GL_RGB, GL_UNSIGNED_BYTE);
     
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
@@ -141,7 +148,6 @@ GLFWwindow* startup(u32 window_width, u32 window_height)
 
 inline void frame_start(GLFWwindow *window)
 {
-    bool show_demo_window = true;
     glfwPollEvents();
     if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) glfwSetWindowShouldClose(window, true);
     // Start the Dear ImGui frame
@@ -149,7 +155,7 @@ inline void frame_start(GLFWwindow *window)
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
     // 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
-    if(show_demo_window) ImGui::ShowDemoWindow(&show_demo_window);
+    if(global_state.show_demo_window) ImGui::ShowDemoWindow(&global_state.show_demo_window);
     
 }
 
@@ -180,7 +186,8 @@ int main()
         frame_start(window);
         
         GL(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
-        use_standard_shader_program(&(global_opengl_context.standard_shader_program), global_opengl_context.container_texture_id);
+        ImGui::DragFloat3("translate", global_state.cube_translation.Elements, 0.01f, 0.0f, 0.0f);
+        use_standard_shader_program(&(global_state.standard_shader_program), global_state.container_texture_id, &global_state.cube_translation);
         GL(glDrawElements(GL_TRIANGLES, attributes_data.num_indices, GL_UNSIGNED_INT, 0));
         frame_end(window);
     }

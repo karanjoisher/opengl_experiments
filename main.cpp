@@ -27,6 +27,7 @@ struct State
     StandardShaderProgram standard_shader_program;
     GLuint container_texture_id;
     hmm_v3 cube_translation;
+    hmm_v3 cube_rotation;
     bool show_demo_window;
 };
 
@@ -118,6 +119,7 @@ GLFWwindow* startup(u32 window_width, u32 window_height)
     if (GLEW_OK != err){fprintf(stderr, "GLEW_ERROR: %s\n", glewGetErrorString(err));}
     
     GL(glEnable(GL_DEPTH_TEST));
+    //GL(glEnable(GL_DEPTH_CLAMP));
     //GL(glDepthFunc(GL_GREATER));
     //GL(glClearDepth(0.0f));
     GL(glClearColor(1.0f, 0.0f, 0.0f, 1.0f));
@@ -187,7 +189,8 @@ int main()
         
         GL(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
         ImGui::DragFloat3("translate", global_state.cube_translation.Elements, 0.01f, 0.0f, 0.0f);
-        use_standard_shader_program(&(global_state.standard_shader_program), global_state.container_texture_id, &global_state.cube_translation);
+        ImGui::DragFloat3("rotate", global_state.cube_rotation.Elements, 0.01f, 0.0f, 0.0f);
+        use_standard_shader_program(&(global_state.standard_shader_program), global_state.container_texture_id, &global_state.cube_translation, &global_state.cube_rotation);
         GL(glDrawElements(GL_TRIANGLES, attributes_data.num_indices, GL_UNSIGNED_INT, 0));
         frame_end(window);
     }

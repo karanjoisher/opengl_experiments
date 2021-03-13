@@ -17,18 +17,21 @@
 
 #include "types.h"
 #include "open_gl.cpp"
+#include "render.cpp"
 #include "gl_programs.cpp"
-
 
 #define ARRAY_LENGTH(a) (sizeof(a)/sizeof(a[0]))
 
 struct State
 {
     StandardShaderProgram standard_shader_program;
+    f32 aspect_ratio_width;
+    f32 aspect_ratio_height;
     GLuint container_texture_id;
     hmm_v3 cube_translation;
     hmm_v3 cube_rotation;
     bool show_demo_window;
+    PerspectiveProjection perspective_projection;
 };
 
 State global_state = {};
@@ -85,26 +88,37 @@ u32 global_cube_index_data[]  =
 
 void framebuffer_size_callback(GLFWwindow* window, int window_width, int window_height)
 {
-    u32 min_dimension, x_padding = 0, y_padding = 0;
-    if(window_width < window_height)
+    State* state = (State*)glfwGetWindowUserPointer(window);
+    u32 x_padding = 0;
+	u32 y_padding = 0;
+    f32 aspect_ratio_width = state->aspect_ratio_width;
+    f32 aspect_ratio_height = state->aspect_ratio_height;
+    u32 width, height;
+    if(aspect_ratio_width > aspect_ratio_height)
     {
-        min_dimension = window_width;
-        y_padding = (window_height - window_width)/2;
+        width = (u32)(window_width + 0.5f);
+        height = (u32)((((f32)window_width * aspect_ratio_height)/aspect_ratio_width) + 0.5f);
+        if((u32)window_height > height) y_padding = ((u32)window_height - height)/2;
     }
     else
     {
-        min_dimension = window_height;
-        x_padding = (window_width - window_height)/2;
+        height = (u32)(window_height + 0.5f);
+        width = (u32)((((f32)window_height * aspect_ratio_width)/aspect_ratio_height) + 0.5f);
+        if((u32)window_width > width) x_padding = (window_width - width)/2;
     }
     
-    GL(glViewport(x_padding, y_padding, min_dimension, min_dimension));
+    GL(glViewport(x_padding, y_padding, width, height));
 } 
 
 
-GLFWwindow* startup(u32 window_width, u32 window_height)
+GLFWwindow* startup(u32 window_width, f32 aspect_ratio_width, f32 aspect_ratio_height)
 {
+    global_state.aspect_ratio_width = aspect_ratio_width;
+    global_state.aspect_ratio_height = aspect_ratio_height;
+    
     //glfw startup
     GLFWwindow* window = 0;
+    u32 window_height = (u32)((((f32)window_width * aspect_ratio_height) / aspect_ratio_width) + 0.5f);
     if (!glfwInit()) return window;
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
@@ -113,6 +127,7 @@ GLFWwindow* startup(u32 window_width, u32 window_height)
     if (!window){glfwTerminate();return window;}
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);  
     glfwMakeContextCurrent(window);
+    glfwSetWindowUserPointer(window, &global_state);	
     
     //Glew startup
     GLenum err = glewInit();
@@ -121,14 +136,19 @@ GLFWwindow* startup(u32 window_width, u32 window_height)
     GL(glEnable(GL_DEPTH_TEST));
     //GL(glEnable(GL_DEPTH_CLAMP));
     //GL(glDepthFunc(GL_GREATER));
-    //GL(glClearDepth(0.0f));
+    //GL(glClearDepth(-1.0f));
     GL(glClearColor(1.0f, 0.0f, 0.0f, 1.0f));
     
     framebuffer_size_callback(window, window_width, window_height);
     
     create_standard_shader_program(&(global_state.standard_shader_program));
-    global_state.show_demo_window = true;
+    global_state.show_demo_window = false;
     global_state.container_texture_id = gl_create_texture2d("container_cube.jpg", GL_RGB, GL_UNSIGNED_BYTE);
+    global_state.perspective_projection.n = -0.1f;
+    global_state.perspective_projection.f = -100.0f;
+    global_state.perspective_projection.aspect_ratio = aspect_ratio_width/aspect_ratio_height;
+    global_state.perspective_projection.fov_y_radians = HMM_ToRadians(45.0f);
+    create_perspective_projection_using_fov_y_and_aspect_ratio(&global_state.perspective_projection);
     
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
@@ -171,9 +191,9 @@ inline void frame_end(GLFWwindow *window)
 int main()
 {
     u32 window_width = 1280, window_height = 720;
-    GLFWwindow* window = startup(window_width, window_height);
-    if(!window) return -1;
+    GLFWwindow* window = startup(window_width, 16, 9);
     
+    if(!window) return -1;
     
     // Create a generic position, textureUV VAO which can be reused by other attribute streams that have the same format
     GLAttributeFormat attribute_formats[2] = {{3, GL_FLOAT, GL_FALSE, 0, 0}, {2, GL_FLOAT, GL_FALSE, 3 * sizeof(f32), 0}};
@@ -190,10 +210,22 @@ int main()
         GL(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
         ImGui::DragFloat3("translate", global_state.cube_translation.Elements, 0.01f, 0.0f, 0.0f);
         ImGui::DragFloat3("rotate", global_state.cube_rotation.Elements, 0.01f, 0.0f, 0.0f);
-        use_standard_shader_program(&(global_state.standard_shader_program), global_state.container_texture_id, &global_state.cube_translation, &global_state.cube_rotation);
+        PerspectiveProjection *p = &global_state.perspective_projection;
+        f32 perspective_parameters[4] = {p->n, p->f, HMM_ToDegrees(p->fov_y_radians), p->aspect_ratio}; 
+        if(ImGui::DragFloat4("n f fov_y(degrees) aspect_ratio", perspective_parameters, 0.01f, 0.0f, 0.0f))
+        {
+            p->n = perspective_parameters[0];
+            p->f = perspective_parameters[1];
+            p->fov_y_radians = HMM_ToRadians(perspective_parameters[2]);
+            p->aspect_ratio = perspective_parameters[3];
+            create_perspective_projection_using_fov_y_and_aspect_ratio(p);
+        }
+        
+        use_standard_shader_program(&(global_state.standard_shader_program), global_state.container_texture_id, &global_state.cube_translation, &global_state.cube_rotation, &global_state.perspective_projection);
         GL(glDrawElements(GL_TRIANGLES, attributes_data.num_indices, GL_UNSIGNED_INT, 0));
         frame_end(window);
     }
+    
     
     glfwTerminate();
     return 0;

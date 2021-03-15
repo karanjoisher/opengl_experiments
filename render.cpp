@@ -42,3 +42,16 @@ void create_perspective_projection_using_plane_coordinates(PerspectiveProjection
     p->aspect_ratio = width/height;
     __create_perspective_projection_using_plane_coordinates(p);
 }
+
+void rotate_camera(hmm_mat4 *to_camera_space, hmm_vec2 pitch_yaw)
+{
+    hmm_mat4 rotation_mat = Y_ROTATE(pitch_yaw.Y) * X_ROTATE(pitch_yaw.X);
+    hmm_mat4 camera_space_without_translation = HMM_Transpose(rotation_mat);
+    
+    camera_space_without_translation.Elements[3][0] = to_camera_space->Elements[3][0];
+    camera_space_without_translation.Elements[3][1] = to_camera_space->Elements[3][1];
+    camera_space_without_translation.Elements[3][2] = to_camera_space->Elements[3][2];
+    camera_space_without_translation.Elements[3][3] = 1.0f;
+    
+    *to_camera_space = camera_space_without_translation;
+}

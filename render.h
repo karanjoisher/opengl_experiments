@@ -17,4 +17,3 @@ struct PerspectiveProjection
     f32 fov_y_radians;
     hmm_mat4 transform;
 };
-

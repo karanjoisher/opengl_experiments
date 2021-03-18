@@ -28,7 +28,7 @@ set include_dirs=/I%libdir%/glfw_3_3_2_winx64_binaries/include/ /I%libdir%/glew_
 
 set libraries=%libdir%/glfw_3_3_2_winx64_binaries/lib-vc2019/glfw3.lib %libdir%/glew_2_1_0_winx86x64_binaries/lib/Release/x64/glew32s.lib %libdir%/imgui/build/imgui_glfw3_3_2_glew2_1_0.lib openGL32.lib kernel32.lib user32.lib Gdi32.lib shell32.lib 
 
-set defines=-D_CRT_SECURE_NO_WARNINGS
+set defines=-D_CRT_SECURE_NO_WARNINGS -DASSERTS_ON
 set compiler_flags=-FC -MD -Gm- -nologo -GR- -EHa- -Oi  -W4 -wd4201 -wd4100 -wd4127 -wd4505 -wd4189 -fp:fast -Z7 -Od 
 set linker_flags=/NODEFAULTLIB:LIBCMT
 

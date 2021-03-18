@@ -1,57 +1,59 @@
 #include "render.h"
+#include "logging.h"
 
-void __create_perspective_projection_using_plane_coordinates(PerspectiveProjection *p)
+void create_perspective_transform(hmm_mat4 *result, f32 near_plane_distance, f32 far_plane_distance, f32 fov_radians, f32 aspect_ratio, PerspectiveTransformCoordinateSystemOption coordinate_system_type)
 {
-    f32 rml = p->r - p->l;
-    f32 rpl = p->r + p->l;
-    f32 tmb = p->t - p->b;
-    f32 tpb = p->t + p->b;
-    f32 fmn = p->f - p->n;
-    f32 fpn = p->f + p->n;
+    // WARNING(Karan): result must be zero cleared before hand!!
     
+    ASSERT(near_plane_distance > 0, "near_plane_distance is a distance value and hence should always be positive");
+    ASSERT(far_plane_distance > 0, "far_plane_distance is a distance value and hence should always be positive");
+    ASSERT(fov_radians > 0, "fov_radians is the absolute angle from the viewing axis to side plane");
+    ASSERT(aspect_ratio > 0, "aspect_ratio must be positive");
+    
+    f32 multiplier = coordinate_system_type == RIGHT_HANDED_COORDINATE_SYSTEM_VIEWING_ALONG_POSITIVE_Z_AXIS ? 1.0f : -1.0f;
+    f32 n = multiplier*near_plane_distance;
+    f32 f = multiplier*far_plane_distance;
+    aspect_ratio = multiplier * aspect_ratio;
+    f32 half_fov_radians = multiplier*(fov_radians/2.0f);
+    f32 tan_half_fov_radians = HMM_TanF(half_fov_radians);
     //1st column
-    p->transform.Elements[0][0] = -(2.0f*p->n)/rml;
-    //2nd column              
-    p->transform.Elements[1][1] = -(2.0f * p->n)/tmb;
+    result->Elements[0][0] = -1.0f/tan_half_fov_radians;
+    
+    //2nd column
+    result->Elements[1][1] = aspect_ratio/tan_half_fov_radians;
+    
     //3rd column
-    p->transform.Elements[2][0] = (rpl/rml);
-    p->transform.Elements[2][1] = (tpb/tmb);
-    p->transform.Elements[2][2] = -(fpn/fmn);
-    p->transform.Elements[2][3] = -1.0f;
+    result->Elements[2][2] = multiplier * ((f+n)/(f-n));
+    result->Elements[2][3] = multiplier;
     //4th column
-    p->transform.Elements[3][2] = (2.0f * p->f * p->n)/fmn;
-}
-
-void create_perspective_projection_using_fov_y_and_aspect_ratio(PerspectiveProjection *p)
-{
-    f32 width = 2.0f * HMM_ABS(p->n) * HMM_TanF(p->fov_y_radians/2.0f);
-    f32 height = width/p->aspect_ratio;
-    p->l = -width/2.0f;
-    p->b = -height/2.0f;
-    p->r = width + p->l;
-    p->t = height + p->b;
-    __create_perspective_projection_using_plane_coordinates(p);
-}
-
-
-void create_perspective_projection_using_plane_coordinates(PerspectiveProjection *p)
-{
-    f32 width = HMM_ABS(p->r - p->l);
-    f32 height = HMM_ABS(p->t - p->b);
-    p->fov_y_radians = 2.0f * HMM_ATanF(width/(2.0f * HMM_ABS(p->n)));
-    p->aspect_ratio = width/height;
-    __create_perspective_projection_using_plane_coordinates(p);
-}
-
-void rotate_camera(hmm_mat4 *to_camera_space, hmm_vec2 pitch_yaw)
-{
-    hmm_mat4 rotation_mat = Y_ROTATE(pitch_yaw.Y) * X_ROTATE(pitch_yaw.X);
-    hmm_mat4 camera_space_without_translation = HMM_Transpose(rotation_mat);
+    result->Elements[3][2] = multiplier * ((-2.0f*f*n)/(f-n));
     
-    camera_space_without_translation.Elements[3][0] = to_camera_space->Elements[3][0];
-    camera_space_without_translation.Elements[3][1] = to_camera_space->Elements[3][1];
-    camera_space_without_translation.Elements[3][2] = to_camera_space->Elements[3][2];
-    camera_space_without_translation.Elements[3][3] = 1.0f;
+#ifdef ASSERTS_ON
+    // NOTE(Karan): Added this to make sure the matrix derived using FOV and aspect ratio matches my derivation which uses l,r,t,b
     
-    *to_camera_space = camera_space_without_translation;
+    f32 width = 2.0f * near_plane_distance * HMM_TanF(fov_radians/2.0f); // Note that we are using ABSOLUTE values so width will be positive
+    f32 height = width/aspect_ratio;
+    f32 l = multiplier*(width/2.0f);
+    f32 r = -l;
+    f32 t = height/2.0f;
+    f32 b = -t;
+    
+    hmm_mat4 compare_to_this = {};
+    compare_to_this.Elements[0][0] = multiplier * ((2.0f*n)/(r-l));
+    compare_to_this.Elements[1][1] = multiplier * ((2.0f*n)/(t-b));
+    compare_to_this.Elements[2][0] = multiplier * (-(r+l)/(r-l));
+    compare_to_this.Elements[2][1] = multiplier * (-(t+b)/(t-b));
+    compare_to_this.Elements[2][2] = multiplier * ((f+n)/(f-n));
+    compare_to_this.Elements[2][3] = multiplier;
+    compare_to_this.Elements[3][2] = multiplier * ((-2.0f*f*n)/(f-n));
+    
+    f32 threshold_difference = 0.0001f;
+    for(u32 i = 0; i < 4; i++)
+    {
+        for(u32 j = 0; j < 4; j++)
+        {
+            ASSERT(HMM_ABS(result->Elements[i][j] - compare_to_this.Elements[i][j]) <= threshold_difference, "Perspective Transform matrix values seem to be incorrect");
+        }
+    }
+#endif
 }

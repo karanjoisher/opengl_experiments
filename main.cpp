@@ -25,22 +25,18 @@
 struct State
 {
     StandardShaderProgram standard_shader_program;
-    u32 aspect_ratio_width;
-    u32 aspect_ratio_height;
     GLuint container_texture_id;
+    f32 aspect_ratio;
     
     hmm_v3 cube_translation;
     hmm_v3 cube_rotation;
     
-    PerspectiveProjection perspective_projection;
-    hmm_mat4 to_camera_space;
-    hmm_v2 camera_pitch_yaw;
-    
-    f32 sensitivity;
-    bool dragging;
-    hmm_v2 mouse_start_pos;
-    
     bool show_demo_window;
+    
+    f32 fov_radians;
+    f32 near_plane_distance;
+    f32 far_plane_distance;
+    PerspectiveTransformCoordinateSystemOption coordinate_system_type;
 };
 
 State global_state = {};
@@ -97,36 +93,40 @@ u32 global_cube_index_data[]  =
 
 void framebuffer_size_callback(GLFWwindow* window, int window_width, int window_height)
 {
-    State* state = (State*)glfwGetWindowUserPointer(window);
     u32 x_padding = 0;
 	u32 y_padding = 0;
-    u32 aspect_ratio_width = state->aspect_ratio_width;
-    u32 aspect_ratio_height = state->aspect_ratio_height;
-    u32 width, height;
-    if(aspect_ratio_width > aspect_ratio_height)
+    u32 width = (u32)window_width;
+    u32 height = (u32)window_height;
+    
+    State* state = (State*)glfwGetWindowUserPointer(window);
+    if(state)
     {
-        width = (u32)(window_width + 0.5f);
-        height = (u32)(((f32)(window_width * aspect_ratio_height)/(f32)aspect_ratio_width) + 0.5f);
-        if((u32)window_height > height) y_padding = ((u32)window_height - height)/2;
-    }
-    else
-    {
-        height = (u32)(window_height + 0.5f);
-        width = (u32)(((f32)(window_height * aspect_ratio_width)/(f32)aspect_ratio_height) + 0.5f);
-        if((u32)window_width > width) x_padding = (window_width - width)/2;
+        f32 aspect_ratio = state->aspect_ratio;
+        ASSERT(aspect_ratio > 0, "Aspect ratio must be positive");
+        if(aspect_ratio > 1.0f)
+        {
+            width = (u32)(window_width + 0.5f);
+            height = (u32)(((f32)window_width/aspect_ratio) + 0.5f);
+            if((u32)window_height > height) y_padding = ((u32)window_height - height)/2;
+        }
+        else
+        {
+            height = (u32)(window_height + 0.5f);
+            width = (u32)(((f32)window_height * aspect_ratio) + 0.5f);
+            if((u32)window_width > width) x_padding = (window_width - width)/2;
+        }
     }
     
     GL(glViewport(x_padding, y_padding, width, height));
 } 
 
-GLFWwindow* startup(u32 window_width, u32 aspect_ratio_width, u32 aspect_ratio_height)
+GLFWwindow* startup(u32 window_width, f32 aspect_ratio)
 {
-    global_state.aspect_ratio_width = aspect_ratio_width;
-    global_state.aspect_ratio_height = aspect_ratio_height;
+    global_state.aspect_ratio = aspect_ratio;
     
     //glfw startup
     GLFWwindow* window = 0;
-    u32 window_height = (u32)((((f32)window_width * aspect_ratio_height) / aspect_ratio_width) + 0.5f);
+    u32 window_height = (u32)(((f32)window_width/aspect_ratio) + 0.5f);
     if (!glfwInit()) return window;
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
@@ -150,16 +150,12 @@ GLFWwindow* startup(u32 window_width, u32 aspect_ratio_width, u32 aspect_ratio_h
     framebuffer_size_callback(window, window_width, window_height);
     
     create_standard_shader_program(&(global_state.standard_shader_program));
-    global_state.show_demo_window = true;
+    global_state.show_demo_window = false;
     global_state.container_texture_id = gl_create_texture2d("container_cube.jpg", GL_RGB, GL_UNSIGNED_BYTE);
-    global_state.perspective_projection.n = -0.1f;
-    global_state.perspective_projection.f = -100.0f;
-    global_state.perspective_projection.aspect_ratio = (f32)aspect_ratio_width/(f32)aspect_ratio_height;
-    global_state.perspective_projection.fov_y_radians = HMM_ToRadians(45.0f);
-    create_perspective_projection_using_fov_y_and_aspect_ratio(&global_state.perspective_projection);
-    global_state.to_camera_space = HMM_Mat4d(1.0f);
-    global_state.sensitivity = 0.1f;
-    
+    global_state.near_plane_distance = 0.1f;
+    global_state.far_plane_distance = 100.f;
+    global_state.fov_radians = HMM_ToRadians(90.0f);
+    global_state.coordinate_system_type = RIGHT_HANDED_COORDINATE_SYSTEM_VIEWING_ALONG_POSITIVE_Z_AXIS;
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -200,8 +196,8 @@ inline void frame_end(GLFWwindow *window)
 
 int main()
 {
-    u32 window_width = 1280, window_height = 720;
-    GLFWwindow* window = startup(window_width, 16, 9);
+    u32 window_width = 1280;
+    GLFWwindow* window = startup(window_width, 16.0f/9.0f);
     
     if(!window) return -1;
     
@@ -213,6 +209,9 @@ int main()
     GLVertexAttributesData attributes_data = gl_create_vertex_attributes_data(global_cube_vertex_data, sizeof(global_cube_vertex_data), global_cube_index_data, sizeof(global_cube_index_data));
     
     gl_bind_vao(&vao, &attributes_data);
+    f64 start_time, end_time;
+    f32 d_t = 0.0f;
+    start_time = glfwGetTime();
     while (!glfwWindowShouldClose(window))
     {
         frame_start(window);
@@ -220,64 +219,23 @@ int main()
         GL(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
         ImGui::DragFloat3("translate", global_state.cube_translation.Elements, 0.01f, 0.0f, 0.0f);
         ImGui::DragFloat3("rotate", global_state.cube_rotation.Elements, 0.01f, 0.0f, 0.0f);
-        ImGui::DragFloat("sensitivity", &global_state.sensitivity, 0.01f, 0.0f, 1.0f);
         
-        {
-            // Camera position control
-            hmm_vec3 camera_pos = {-global_state.to_camera_space.Elements[3][0], -global_state.to_camera_space.Elements[3][1], -global_state.to_camera_space.Elements[3][2]};
-            if(ImGui::DragFloat3("cam translate", camera_pos.Elements, 0.01f, 0.0f, 0.0f))
-            {
-                global_state.to_camera_space.Elements[3][0] = -camera_pos.X;
-                global_state.to_camera_space.Elements[3][1] = -camera_pos.Y;
-                global_state.to_camera_space.Elements[3][2] = -camera_pos.Z;
-            }
-        }
+        ImGui::RadioButton("Looking down +ve Z Axis", (s32*)&global_state.coordinate_system_type, (s32)RIGHT_HANDED_COORDINATE_SYSTEM_VIEWING_ALONG_POSITIVE_Z_AXIS); ImGui::SameLine();
+        ImGui::RadioButton("Looking down -ve Z Axis", (s32*)&global_state.coordinate_system_type, (s32)RIGHT_HANDED_COORDINATE_SYSTEM_VIEWING_ALONG_NEGATIVE_Z_AXIS);
         
-        {
-            // Camera pitch yaw control using mouse
-            s32 state = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
-            f64 _mouse_pos[2] = {};
-            glfwGetCursorPos(window, &_mouse_pos[0], &_mouse_pos[1]);
-            bool alt_is_down = glfwGetKey(window, GLFW_KEY_LEFT_ALT);
-            hmm_v2 mouse_pos = {(f32)_mouse_pos[0], (f32)_mouse_pos[1]};
-            
-            if(global_state.dragging && (state == GLFW_RELEASE))
-            {
-                global_state.dragging = false;
-            }
-            else if(!global_state.dragging && (state == GLFW_PRESS))
-            {
-                global_state.dragging = true;
-                global_state.mouse_start_pos = mouse_pos;
-            }
-            
-            if(alt_is_down && global_state.dragging)
-            {
-                hmm_vec2 diff = (global_state.mouse_start_pos - mouse_pos) * global_state.sensitivity;
-                global_state.camera_pitch_yaw.X += diff.Y;
-                global_state.camera_pitch_yaw.Y += diff.X;
-                
-                rotate_camera(&global_state.to_camera_space, global_state.camera_pitch_yaw);
-                
-                global_state.mouse_start_pos = mouse_pos;
-            }
-        }
+        ImGui::DragFloat("near", &global_state.near_plane_distance, 0.01f, 0.0f, 0.0f); 
+        ImGui::DragFloat("far", &global_state.far_plane_distance, 0.01f, 0.0f, 0.0f); 
+        ImGui::DragFloat("fov(radians)", &global_state.fov_radians, 0.01f, 0.0f, 0.0f);
+        ImGui::DragFloat("aspect ratio", &global_state.aspect_ratio, 0.01f, 0.0f, 0.0f);
         
-        PerspectiveProjection *p = &global_state.perspective_projection;
-        f32 perspective_parameters[4] = {p->n, p->f, HMM_ToDegrees(p->fov_y_radians), p->aspect_ratio}; 
-        if(ImGui::DragFloat4("n f fov_y(degrees) aspect_ratio", perspective_parameters, 0.01f, 0.0f, 0.0f))
-        {
-            p->n = perspective_parameters[0];
-            p->f = perspective_parameters[1];
-            p->fov_y_radians = HMM_ToRadians(perspective_parameters[2]);
-            p->aspect_ratio = perspective_parameters[3];
-            create_perspective_projection_using_fov_y_and_aspect_ratio(p);
-        }
-        
-        use_standard_shader_program(&(global_state.standard_shader_program), global_state.container_texture_id, &global_state.cube_translation, &global_state.cube_rotation, &global_state.to_camera_space, &global_state.perspective_projection);
+        hmm_mat4 identity = HMM_Mat4d(1.0f);
+        use_standard_shader_program(&(global_state.standard_shader_program), global_state.container_texture_id, &global_state.cube_translation, &global_state.cube_rotation, &identity, global_state.near_plane_distance, global_state.far_plane_distance, global_state.fov_radians, global_state.aspect_ratio, global_state.coordinate_system_type);
         GL(glDrawElements(GL_TRIANGLES, attributes_data.num_indices, GL_UNSIGNED_INT, 0));
         
         frame_end(window);
+        end_time = glfwGetTime();
+        d_t = (f32)(end_time - start_time);
+        start_time = end_time;
     }
     
     

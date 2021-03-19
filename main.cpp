@@ -17,6 +17,7 @@
 
 #include "types.h"
 #include "open_gl.cpp"
+#include "math.cpp"
 #include "render.cpp"
 #include "gl_programs.cpp"
 
@@ -37,6 +38,9 @@ struct State
     f32 near_plane_distance;
     f32 far_plane_distance;
     PerspectiveTransformCoordinateSystemOption coordinate_system_type;
+    
+    Camera camera;
+    hmm_v3 camera_rotations = {};
 };
 
 State global_state = {};
@@ -156,6 +160,10 @@ GLFWwindow* startup(u32 window_width, f32 aspect_ratio)
     global_state.far_plane_distance = 100.f;
     global_state.fov_radians = HMM_ToRadians(90.0f);
     global_state.coordinate_system_type = RIGHT_HANDED_COORDINATE_SYSTEM_VIEWING_ALONG_POSITIVE_Z_AXIS;
+    global_state.camera.axis[0] = {1.0f, 0.0f, 0.0f};
+    global_state.camera.axis[1] = {0.0f, 1.0f, 0.0f};
+    global_state.camera.axis[2] = {0.0f, 0.0f, 1.0f};
+    
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -220,6 +228,17 @@ int main()
         ImGui::DragFloat3("translate", global_state.cube_translation.Elements, 0.01f, 0.0f, 0.0f);
         ImGui::DragFloat3("rotate", global_state.cube_rotation.Elements, 0.01f, 0.0f, 0.0f);
         
+        ImGui::DragFloat3("cam pos", global_state.camera.pos.Elements, 0.01f, 0.0f, 0.0f);
+        
+        if(ImGui::DragFloat3("cam rotate", global_state.camera_rotations.Elements, 0.01f, 0.0f, 0.0f))
+        {
+            hmm_v3 camera_rotations = global_state.camera_rotations;
+            hmm_mat4 rotation = X_ROTATE(camera_rotations.X) * Y_ROTATE(camera_rotations.Y) * Z_ROTATE(camera_rotations.Z);
+            global_state.camera.axis[0] = {rotation.Elements[0][0], rotation.Elements[0][1], rotation.Elements[0][2]};
+            global_state.camera.axis[1] = {rotation.Elements[1][0], rotation.Elements[1][1], rotation.Elements[1][2]};
+            global_state.camera.axis[2] = {rotation.Elements[2][0], rotation.Elements[2][1], rotation.Elements[2][2]};
+        }
+        
         ImGui::RadioButton("Looking down +ve Z Axis", (s32*)&global_state.coordinate_system_type, (s32)RIGHT_HANDED_COORDINATE_SYSTEM_VIEWING_ALONG_POSITIVE_Z_AXIS); ImGui::SameLine();
         ImGui::RadioButton("Looking down -ve Z Axis", (s32*)&global_state.coordinate_system_type, (s32)RIGHT_HANDED_COORDINATE_SYSTEM_VIEWING_ALONG_NEGATIVE_Z_AXIS);
         
@@ -228,8 +247,7 @@ int main()
         ImGui::DragFloat("fov(radians)", &global_state.fov_radians, 0.01f, 0.0f, 0.0f);
         ImGui::DragFloat("aspect ratio", &global_state.aspect_ratio, 0.01f, 0.0f, 0.0f);
         
-        hmm_mat4 identity = HMM_Mat4d(1.0f);
-        use_standard_shader_program(&(global_state.standard_shader_program), global_state.container_texture_id, &global_state.cube_translation, &global_state.cube_rotation, &identity, global_state.near_plane_distance, global_state.far_plane_distance, global_state.fov_radians, global_state.aspect_ratio, global_state.coordinate_system_type);
+        use_standard_shader_program(&(global_state.standard_shader_program), global_state.container_texture_id, &global_state.cube_translation, &global_state.cube_rotation, &global_state.camera, global_state.near_plane_distance, global_state.far_plane_distance, global_state.fov_radians, global_state.aspect_ratio, global_state.coordinate_system_type);
         GL(glDrawElements(GL_TRIANGLES, attributes_data.num_indices, GL_UNSIGNED_INT, 0));
         
         frame_end(window);

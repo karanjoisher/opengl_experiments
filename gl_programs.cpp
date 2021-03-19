@@ -58,16 +58,21 @@ FragColor = texture(texture2d_sampler, fs_texture_uv);
 }
 
 
-void use_standard_shader_program(StandardShaderProgram *program, GLuint texture_id, hmm_v3 *translation, hmm_v3 *rotation, hmm_mat4 *to_camera_space, f32 near_plane_distance, f32 far_plane_distance, f32 fov_radians, f32 aspect_ratio, PerspectiveTransformCoordinateSystemOption coordinate_system_type)
+void use_standard_shader_program(StandardShaderProgram *program, GLuint texture_id, hmm_v3 *translation, hmm_v3 *rotation, Camera *camera, f32 near_plane_distance, f32 far_plane_distance, f32 fov_radians, f32 aspect_ratio, PerspectiveTransformCoordinateSystemOption coordinate_system_type)
 {
     GL(glUseProgram(program->program_id));
     GL(glActiveTexture(GL_TEXTURE0)); 
     GL(glBindTexture(GL_TEXTURE_2D, texture_id));
     
     hmm_mat4 to_world_space  = HMM_Translate(*translation) * Z_ROTATE(rotation->Z) * Y_ROTATE(rotation->Y) * X_ROTATE(rotation->X);
+    
+    hmm_mat4 to_camera_space = {};
+    create_to_camera_space_matrix(&to_camera_space, camera);
+    
     hmm_mat4 perspective_transform = {};
     create_perspective_transform(&perspective_transform, near_plane_distance, far_plane_distance, fov_radians, aspect_ratio, coordinate_system_type);
+    
     GL(glUniformMatrix4fv(program->to_world_space, 1, GL_FALSE, (GLfloat*)to_world_space.Elements));
-    GL(glUniformMatrix4fv(program->to_camera_space, 1, GL_FALSE, (GLfloat*)to_camera_space->Elements));
+    GL(glUniformMatrix4fv(program->to_camera_space, 1, GL_FALSE, (GLfloat*)to_camera_space.Elements));
     GL(glUniformMatrix4fv(program->perspective_projection, 1, GL_FALSE, (GLfloat*)(perspective_transform.Elements)));
 }

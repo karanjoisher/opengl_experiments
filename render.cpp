@@ -13,14 +13,13 @@ void create_perspective_transform(hmm_mat4 *result, f32 near_plane_distance, f32
     f32 multiplier = coordinate_system_type == RIGHT_HANDED_COORDINATE_SYSTEM_VIEWING_ALONG_POSITIVE_Z_AXIS ? 1.0f : -1.0f;
     f32 n = multiplier*near_plane_distance;
     f32 f = multiplier*far_plane_distance;
-    aspect_ratio = multiplier * aspect_ratio;
     f32 half_fov_radians = multiplier*(fov_radians/2.0f);
     f32 tan_half_fov_radians = HMM_TanF(half_fov_radians);
     //1st column
     result->Elements[0][0] = -1.0f/tan_half_fov_radians;
     
     //2nd column
-    result->Elements[1][1] = aspect_ratio/tan_half_fov_radians;
+    result->Elements[1][1] = multiplier * (aspect_ratio/tan_half_fov_radians);
     
     //3rd column
     result->Elements[2][2] = multiplier * ((f+n)/(f-n));
@@ -52,8 +51,20 @@ void create_perspective_transform(hmm_mat4 *result, f32 near_plane_distance, f32
     {
         for(u32 j = 0; j < 4; j++)
         {
-            ASSERT(HMM_ABS(result->Elements[i][j] - compare_to_this.Elements[i][j]) <= threshold_difference, "Perspective Transform matrix values seem to be incorrect");
+            
+            ASSERT(HMM_ABS(result->Elements[i][j] - compare_to_this.Elements[i][j]) <= threshold_difference, "Perspective Transform matrix values seem to be incorrect | Element[%d][%d] fov_asp version: %.3f, lrtb version: %.3f", j, i, result->Elements[i][j], compare_to_this.Elements[i][j]);
         }
     }
 #endif
+}
+
+void create_to_camera_space_matrix(hmm_mat4 * result, Camera *camera)
+{
+    hmm_mat4 camera_axis = {};
+    HMM_SetRow(&camera_axis, 0, &(camera->axis[0]));
+    HMM_SetRow(&camera_axis, 1, &camera->axis[1]);
+    HMM_SetRow(&camera_axis, 2, &camera->axis[2]);
+    camera_axis.Elements[3][3] = 1.0f;
+    
+    *result = camera_axis * HMM_Translate(-camera->pos);
 }

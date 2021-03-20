@@ -17,6 +17,7 @@
 
 #include "types.h"
 #include "open_gl.cpp"
+#include "math.cpp"
 #include "render.cpp"
 #include "gl_programs.cpp"
 
@@ -25,18 +26,19 @@
 struct State
 {
     StandardShaderProgram standard_shader_program;
+    GLInterleavedAttributesVAO xyz_uv;
     GLuint container_texture_id;
     f32 aspect_ratio;
     
+    GLVertexAttributesData cube_xyz_uv;
     hmm_v3 cube_translation;
     hmm_v3 cube_rotation;
     
     bool show_demo_window;
     
-    f32 fov_radians;
-    f32 near_plane_distance;
-    f32 far_plane_distance;
-    PerspectiveTransformCoordinateSystemOption coordinate_system_type;
+    Camera camera;
+    f32 camera_speed_per_sec;
+    f32 camera_sensitivity;
 };
 
 State global_state = {};
@@ -141,32 +143,37 @@ GLFWwindow* startup(u32 window_width, f32 aspect_ratio)
     //Glew startup
     GLenum err = glewInit();
     if (GLEW_OK != err){fprintf(stderr, "GLEW_ERROR: %s\n", glewGetErrorString(err));}
-    
     GL(glEnable(GL_DEPTH_TEST));
     //GL(glDepthFunc(GL_GREATER));
     //GL(glClearDepth(-1.0f));
-    GL(glClearColor(0.0f, 0.0f, 0.0f, 0.0f));
-    
+    GL(glClearColor(0.317, 0.458, 0.741, 1.0f));
     framebuffer_size_callback(window, window_width, window_height);
     
-    create_standard_shader_program(&(global_state.standard_shader_program));
+    // Initialize global state
     global_state.show_demo_window = false;
+    create_standard_shader_program(&(global_state.standard_shader_program));
     global_state.container_texture_id = gl_create_texture2d("container_cube.jpg", GL_RGB, GL_UNSIGNED_BYTE);
-    global_state.near_plane_distance = 0.1f;
-    global_state.far_plane_distance = 100.f;
-    global_state.fov_radians = HMM_ToRadians(90.0f);
-    global_state.coordinate_system_type = RIGHT_HANDED_COORDINATE_SYSTEM_VIEWING_ALONG_POSITIVE_Z_AXIS;
+    // Create a generic position, textureUV VAO which can be reused by other attribute streams that have the same format
+    GLAttributeFormat attribute_formats[2] = {{3, GL_FLOAT, GL_FALSE, 0, 0}, {2, GL_FLOAT, GL_FALSE, 3 * sizeof(f32), 0}};
+    global_state.xyz_uv = gl_create_interleaved_attributes_vao(attribute_formats, ARRAY_LENGTH(attribute_formats));
+    // Upload attribute stream data to GPU
+    global_state.cube_xyz_uv = gl_create_vertex_attributes_data(global_cube_vertex_data, sizeof(global_cube_vertex_data), global_cube_index_data, sizeof(global_cube_index_data));
+    
+    global_state.camera.near_plane_distance = 0.1f;
+    global_state.camera.far_plane_distance = 100.f;
+    global_state.camera.fov_radians = HMM_ToRadians(90.0f);
+    global_state.camera.aspect_ratio = aspect_ratio;
+    global_state.camera.looking_direction = RIGHT_HANDED_COORDINATE_SYSTEM_VIEWING_ALONG_POSITIVE_Z_AXIS;
+    hmm_v3 zero_rot = {};
+    set_rotation(&global_state.camera, &zero_rot);
+    global_state.camera_speed_per_sec = 2.0f;
+    global_state.camera_sensitivity = 0.05f;
+    
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
-    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
-    // Setup Dear ImGui style
     ImGui::StyleColorsDark();
-    //ImGui::StyleColorsClassic();
-    
-    // Setup Platform/Renderer bindings
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 330 core");
     
@@ -194,6 +201,14 @@ inline void frame_end(GLFWwindow *window)
     glfwSwapBuffers(window);
 }
 
+inline void glfw_get_cursor_pos(GLFWwindow *window, hmm_v2 *mouse_pos)
+{
+    f64 x, y;
+    glfwGetCursorPos(window, &x, &y);
+    mouse_pos->X = (f32)x;
+    mouse_pos->Y = (f32)y;
+}
+
 int main()
 {
     u32 window_width = 1280;
@@ -201,43 +216,81 @@ int main()
     
     if(!window) return -1;
     
-    // Create a generic position, textureUV VAO which can be reused by other attribute streams that have the same format
-    GLAttributeFormat attribute_formats[2] = {{3, GL_FLOAT, GL_FALSE, 0, 0}, {2, GL_FLOAT, GL_FALSE, 3 * sizeof(f32), 0}};
-    GLInterleavedAttributesVAO vao = gl_create_interleaved_attributes_vao(attribute_formats, ARRAY_LENGTH(attribute_formats));
-    
-    // Upload attribute stream data to GPU
-    GLVertexAttributesData attributes_data = gl_create_vertex_attributes_data(global_cube_vertex_data, sizeof(global_cube_vertex_data), global_cube_index_data, sizeof(global_cube_index_data));
-    
-    gl_bind_vao(&vao, &attributes_data);
     f64 start_time, end_time;
+    bool dragging = false;
     f32 d_t = 0.0f;
     start_time = glfwGetTime();
+    hmm_v2 mouse_pos, previous_mouse_pos;
+    glfw_get_cursor_pos(window, &previous_mouse_pos);
     while (!glfwWindowShouldClose(window))
     {
         frame_start(window);
         
         GL(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
-        ImGui::DragFloat3("translate", global_state.cube_translation.Elements, 0.01f, 0.0f, 0.0f);
-        ImGui::DragFloat3("rotate", global_state.cube_rotation.Elements, 0.01f, 0.0f, 0.0f);
+        ImGui::DragFloat3("cube pos", global_state.cube_translation.Elements, 0.01f, 0.0f, 0.0f);
+        ImGui::DragFloat3("cube rot", global_state.cube_rotation.Elements, 0.01f, 0.0f, 0.0f);
+        ImGui::DragFloat("cam speed", &global_state.camera_speed_per_sec, 0.01f, 0.0f, 0.0f); 
+        ImGui::DragFloat("cam sensitivity", &global_state.camera_sensitivity, 0.01f, 0.0f, 0.0f);
         
-        ImGui::RadioButton("Looking down +ve Z Axis", (s32*)&global_state.coordinate_system_type, (s32)RIGHT_HANDED_COORDINATE_SYSTEM_VIEWING_ALONG_POSITIVE_Z_AXIS); ImGui::SameLine();
-        ImGui::RadioButton("Looking down -ve Z Axis", (s32*)&global_state.coordinate_system_type, (s32)RIGHT_HANDED_COORDINATE_SYSTEM_VIEWING_ALONG_NEGATIVE_Z_AXIS);
+        ImGui::RadioButton("Looking down +ve Z Axis", (s32*)&global_state.camera.looking_direction, (s32)RIGHT_HANDED_COORDINATE_SYSTEM_VIEWING_ALONG_POSITIVE_Z_AXIS); ImGui::SameLine();
+        ImGui::RadioButton("Looking down -ve Z Axis", (s32*)&global_state.camera.looking_direction, (s32)RIGHT_HANDED_COORDINATE_SYSTEM_VIEWING_ALONG_NEGATIVE_Z_AXIS);
         
-        ImGui::DragFloat("near", &global_state.near_plane_distance, 0.01f, 0.0f, 0.0f); 
-        ImGui::DragFloat("far", &global_state.far_plane_distance, 0.01f, 0.0f, 0.0f); 
-        ImGui::DragFloat("fov(radians)", &global_state.fov_radians, 0.01f, 0.0f, 0.0f);
-        ImGui::DragFloat("aspect ratio", &global_state.aspect_ratio, 0.01f, 0.0f, 0.0f);
+        ImGui::DragFloat("near", &global_state.camera.near_plane_distance, 0.01f, 0.0f, 0.0f); 
+        ImGui::DragFloat("far", &global_state.camera.far_plane_distance, 0.01f, 0.0f, 0.0f); 
+        ImGui::DragFloat("fov(radians)", &global_state.camera.fov_radians, 0.01f, 0.0f, 0.0f);
+        ImGui::DragFloat("aspect ratio", &global_state.camera.aspect_ratio, 0.01f, 0.0f, 0.0f);
         
-        hmm_mat4 identity = HMM_Mat4d(1.0f);
-        use_standard_shader_program(&(global_state.standard_shader_program), global_state.container_texture_id, &global_state.cube_translation, &global_state.cube_rotation, &identity, global_state.near_plane_distance, global_state.far_plane_distance, global_state.fov_radians, global_state.aspect_ratio, global_state.coordinate_system_type);
-        GL(glDrawElements(GL_TRIANGLES, attributes_data.num_indices, GL_UNSIGNED_INT, 0));
+        ImGui::BulletText("In order to move camera use WASD");
+        ImGui::BulletText("While moving you can use the mouse to rotate the camera");
+        ImGui::BulletText("While not moving you can hold down ALT+Left mouse button and then drag the mouse to rotate camera");
+        
+        // Camera movement
+        hmm_vec3 camera_movement_dir = {};
+        if(glfwGetKey(window, GLFW_KEY_W)) camera_movement_dir += ((f32)global_state.camera.looking_direction*global_state.camera.axis[2]);
+        if(glfwGetKey(window, GLFW_KEY_S)) camera_movement_dir -= ((f32)global_state.camera.looking_direction*global_state.camera.axis[2]);
+        if(glfwGetKey(window, GLFW_KEY_A)) camera_movement_dir += ((f32)global_state.camera.looking_direction*global_state.camera.axis[0]);
+        if(glfwGetKey(window, GLFW_KEY_D)) camera_movement_dir -= ((f32)global_state.camera.looking_direction*global_state.camera.axis[0]);
+        camera_movement_dir = HMM_NormalizeVec3(camera_movement_dir);
+        bool camera_moved = camera_movement_dir.X != 0.0f || camera_movement_dir.Y != 0.0f || camera_movement_dir.Z != 0.0f; 
+        global_state.camera.pos += (camera_movement_dir * global_state.camera_speed_per_sec * d_t);
+        
+        // Camera pitch yaw control using mouse
+        bool alt_is_down = glfwGetKey(window, GLFW_KEY_LEFT_ALT);
+        s32 left_button = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
+        if(dragging && (left_button == GLFW_RELEASE))
+        {
+            dragging = false;
+        }
+        else if(!dragging && (left_button == GLFW_PRESS))
+        {
+            dragging = true;
+        }
+        
+        glfw_get_cursor_pos(window, &mouse_pos);
+        
+        if(camera_moved || (alt_is_down && dragging))
+        {
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);  
+            hmm_vec2 diff = (previous_mouse_pos - mouse_pos) * global_state.camera_sensitivity;
+            hmm_v3 rotation = {-global_state.camera.looking_direction * diff.Y, diff.X, 0.0f};
+            rotate_camera(&global_state.camera, &rotation);
+        }
+        else
+        {
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);  
+        }
+        
+        // Setup attribute stream, setup the shader and draw!
+        gl_bind_vao(&global_state.xyz_uv, &global_state.cube_xyz_uv);
+        use_standard_shader_program(&global_state.standard_shader_program, global_state.container_texture_id, &global_state.cube_translation, &global_state.cube_rotation, &global_state.camera);
+        GL(glDrawElements(GL_TRIANGLES, global_state.cube_xyz_uv.num_indices, GL_UNSIGNED_INT, 0));
         
         frame_end(window);
         end_time = glfwGetTime();
         d_t = (f32)(end_time - start_time);
         start_time = end_time;
+        previous_mouse_pos = mouse_pos;
     }
-    
     
     glfwTerminate();
     return 0;

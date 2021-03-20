@@ -1,7 +1,7 @@
 [] Implement and understand perspective projection
 {
     [x] Create perspective projection matrix and use it to render the cube
-    [] Add position control and then rotation control to the camera so that it behaves like a "scene" camera
+    [x] Add position control and then rotation control to the camera so that it behaves like a "scene" camera
     [] Consider adding an actual scene camera (we will be able to see "game" cameras in "scene" view as)
 }
 

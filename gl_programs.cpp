@@ -58,8 +58,10 @@ FragColor = texture(texture2d_sampler, fs_texture_uv);
 }
 
 
-void use_standard_shader_program(StandardShaderProgram *program, GLuint texture_id, hmm_v3 *translation, hmm_v3 *rotation, Camera *camera, f32 near_plane_distance, f32 far_plane_distance, f32 fov_radians, f32 aspect_ratio, PerspectiveTransformCoordinateSystemOption coordinate_system_type)
+void use_standard_shader_program(StandardShaderProgram *program, GLuint texture_id, hmm_v3 *translation, hmm_v3 *rotation, Camera *camera)
 {
+    // TODO(Karan): This function can probably take in a VAO spec and the Vertex Attribute stream and bind them here i.e. this function can take in values required to setup its vertex input. 
+    
     GL(glUseProgram(program->program_id));
     GL(glActiveTexture(GL_TEXTURE0)); 
     GL(glBindTexture(GL_TEXTURE_2D, texture_id));
@@ -67,10 +69,10 @@ void use_standard_shader_program(StandardShaderProgram *program, GLuint texture_
     hmm_mat4 to_world_space  = HMM_Translate(*translation) * Z_ROTATE(rotation->Z) * Y_ROTATE(rotation->Y) * X_ROTATE(rotation->X);
     
     hmm_mat4 to_camera_space = {};
-    create_to_camera_space_matrix(&to_camera_space, camera);
+    create_to_camera_space_transform(&to_camera_space, camera);
     
     hmm_mat4 perspective_transform = {};
-    create_perspective_transform(&perspective_transform, near_plane_distance, far_plane_distance, fov_radians, aspect_ratio, coordinate_system_type);
+    create_perspective_transform(&perspective_transform, camera->near_plane_distance, camera->far_plane_distance, camera->fov_radians, camera->aspect_ratio, camera->looking_direction);
     
     GL(glUniformMatrix4fv(program->to_world_space, 1, GL_FALSE, (GLfloat*)to_world_space.Elements));
     GL(glUniformMatrix4fv(program->to_camera_space, 1, GL_FALSE, (GLfloat*)to_camera_space.Elements));

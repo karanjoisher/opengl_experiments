@@ -4,4 +4,4 @@
 *.cap
 *.pdb
 *.sln
-logs/
+logs/private

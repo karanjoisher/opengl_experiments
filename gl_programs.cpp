@@ -1,16 +1,19 @@
 #include "render.h"
 #include "open_gl.cpp"
 
-struct StandardShaderProgram
+struct LightingProgram
 {
     GLuint program_id;
     GLuint to_world_space;
     GLuint perspective_projection;
     GLuint to_camera_space;
+    GLuint object_color;
+    GLuint lighting_disabled;
+    GLuint light_color;
 };
 
 
-void create_standard_shader_program(StandardShaderProgram *standard_shader_program)
+void create_lighting_program(LightingProgram *program)
 {
     char *vertex_source = R"FOO(
     
@@ -38,43 +41,64 @@ fs_texture_uv = vs_texture_uv;
     #version 330 core
     
     in vec2 fs_texture_uv;
-uniform sampler2D texture2d_sampler;
+    uniform sampler2D texture2d_sampler;
+uniform vec4 object_color;
+uniform int lighting_disabled;
+uniform vec4 light_color;
 
 out vec4 FragColor;
 
 void main()
 {
-FragColor = texture(texture2d_sampler, fs_texture_uv);
+vec4 color;
+if(object_color.r >= 0 && object_color.g >= 0 && object_color.b >= 0 && object_color.a >= 0)
+{
+color = object_color;
+}
+else
+{
+color = texture(texture2d_sampler, fs_texture_uv);
+}
+
+if(lighting_disabled == 0)
+{
+ color = color * light_color;
+}
+
+FragColor = color;
 }
 )FOO";
     
-    standard_shader_program->program_id = gl_create_program(vertex_source, fragment_source);
+    program->program_id = gl_create_program(vertex_source, fragment_source);
     
-    GL(standard_shader_program->to_world_space = glGetUniformLocation(standard_shader_program->program_id, "to_world_space"));
-    GL(standard_shader_program->to_camera_space = glGetUniformLocation(standard_shader_program->program_id, "to_camera_space"));
-    GL(standard_shader_program->perspective_projection = glGetUniformLocation(standard_shader_program->program_id, "perspective_projection"));
+    GL(program->to_world_space = glGetUniformLocation(program->program_id, "to_world_space"));
+    GL(program->to_camera_space = glGetUniformLocation(program->program_id, "to_camera_space"));
+    GL(program->perspective_projection = glGetUniformLocation(program->program_id, "perspective_projection"));
     
-    gl_set_uniform_1i(standard_shader_program->program_id, "texture2d_sampler", 0);
+    gl_set_uniform_1i(program->program_id, "texture2d_sampler", 0);
+    GL(program->object_color = glGetUniformLocation(program->program_id, "object_color"));
+    GL(program->lighting_disabled = glGetUniformLocation(program->program_id, "lighting_disabled"));
+    GL(program->light_color = glGetUniformLocation(program->program_id, "light_color"));
 }
 
-
-void use_standard_shader_program(StandardShaderProgram *program, GLuint texture_id, hmm_v3 *translation, hmm_v3 *rotation, Camera *camera)
+void use_lighting_program(LightingProgram *program, GLuint texture_id, hmm_v4 object_color, hmm_mat4 *to_world_space, hmm_mat4 *to_camera_space, hmm_mat4 *perspective_transform, bool lighting_disabled, hmm_v4 light_color)
 {
     // TODO(Karan): This function can probably take in a VAO spec and the Vertex Attribute stream and bind them here i.e. this function can take in values required to setup its vertex input. 
     
     GL(glUseProgram(program->program_id));
-    GL(glActiveTexture(GL_TEXTURE0)); 
-    GL(glBindTexture(GL_TEXTURE_2D, texture_id));
     
-    hmm_mat4 to_world_space  = HMM_Translate(*translation) * Z_ROTATE(rotation->Z) * Y_ROTATE(rotation->Y) * X_ROTATE(rotation->X);
+    if(texture_id != 0)
+    {
+        GL(glActiveTexture(GL_TEXTURE0)); 
+        GL(glBindTexture(GL_TEXTURE_2D, texture_id));
+        object_color = {-1.0f, -1.0f, -1.0f, -1.0f};
+    }
     
-    hmm_mat4 to_camera_space = {};
-    create_to_camera_space_transform(&to_camera_space, camera);
+    GL(glUniformMatrix4fv(program->to_world_space, 1, GL_FALSE, (GLfloat*)to_world_space->Elements));
+    GL(glUniformMatrix4fv(program->to_camera_space, 1, GL_FALSE, (GLfloat*)to_camera_space->Elements));
+    GL(glUniformMatrix4fv(program->perspective_projection, 1, GL_FALSE, (GLfloat*)(perspective_transform->Elements)));
     
-    hmm_mat4 perspective_transform = {};
-    create_perspective_transform(&perspective_transform, camera->near_plane_distance, camera->far_plane_distance, camera->fov_radians, camera->aspect_ratio, camera->looking_direction);
-    
-    GL(glUniformMatrix4fv(program->to_world_space, 1, GL_FALSE, (GLfloat*)to_world_space.Elements));
-    GL(glUniformMatrix4fv(program->to_camera_space, 1, GL_FALSE, (GLfloat*)to_camera_space.Elements));
-    GL(glUniformMatrix4fv(program->perspective_projection, 1, GL_FALSE, (GLfloat*)(perspective_transform.Elements)));
+    GL(glUniform4fv(program->object_color, 1, (GLfloat*)(object_color.Elements)));
+    GL(glUniform1i(program->lighting_disabled, lighting_disabled ? 1 : 0));
+    GL(glUniform4fv(program->light_color, 1, (GLfloat*)(light_color.Elements)));
 }

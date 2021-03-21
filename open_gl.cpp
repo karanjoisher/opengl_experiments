@@ -17,6 +17,17 @@ struct GLAttributeFormat
     GLuint source_buffer_binding_point;
 };
 
+
+/*
+DILEMMA(Karan): Interleaved attributes in single buffer VS Continious attributes where each attribute has their own buffer
+Consider an interleaved attribute data stream : xyz_uv
+
+- If some object has the same position values but doesn't have any texture applied to it i.e. the object is just a geometry and has no use of texture UVs (e.g. a Solid colored cube), in such a scenario we can still continue to use the xyz_uv VAO and the attribute data : we would just ignore the uv data stream in vertex shader. So I don't think there is any dilemma wrt this scenario
+- However consider an object which has same position values but different texture UV values, in this scenario we would have to create a different attribute data buffer that contains same pos vals but different texture uv vals. So we are duplicating the cube vertex data!! In order to prevent this we could probably have isolated buffers for each attribute stream (for e.g. a different buffer for both pos and uv vals), and then we can reuse the pos data but create a new buffer for the different texture uv vals.
+
+ TODO(Karan): We currently have come across scenario 1 (i.e. we can simply ignore unwanted attribute data streams) but we need to consider what to do for second scenario!
+ 
+*/
 struct GLInterleavedAttributesVAO
 {
     GLuint handle;

@@ -13,7 +13,6 @@ struct GLAttributeFormat
     GLint num_components;
     GLenum data_type;
     GLboolean should_normalize;
-    GLuint offset_in_source_buffer;
     GLuint source_buffer_binding_point;
 };
 
@@ -69,7 +68,7 @@ GLInterleavedAttributesVAO gl_create_interleaved_attributes_vao(GLAttributeForma
     {
         GLAttributeFormat *attribute_format = attribute_formats + i; 
         GL(glEnableVertexAttribArray(i));
-        GL(glVertexAttribFormat(i, attribute_format->num_components, attribute_format->data_type, attribute_format->should_normalize, attribute_format->offset_in_source_buffer));
+        GL(glVertexAttribFormat(i, attribute_format->num_components, attribute_format->data_type, attribute_format->should_normalize, vao.stride));
         GL(glVertexAttribBinding(i, attribute_format->source_buffer_binding_point));
         
         switch(attribute_format->data_type)

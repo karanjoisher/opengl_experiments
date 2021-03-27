@@ -27,11 +27,11 @@ struct State
 {
     LightingProgram lighting_program;
     
-    GLInterleavedAttributesVAO xyz_uv;
+    GLInterleavedAttributesVAO xyz_uv_nxnynz;
     GLuint container_texture_id;
     f32 aspect_ratio;
     
-    GLVertexAttributesData cube_xyz_uv;
+    GLVertexAttributesData cube_xyz_uv_nxnynz;
     hmm_v3 cube_translation;
     hmm_v3 cube_rotation;
     
@@ -47,42 +47,41 @@ State global_state = {};
 f32 global_cube_vertex_data[] = {
     //// Local Space Coordinates, Texture UVs
     // Front face
-    .5f, -.5f,  .5f,  (1.0f/3.0f), 0.5f, //A
-    .5f,  .5f,  .5f,  (1.0f/3.0f), 1.0f, //B 
-    -.5f,  .5f,  .5f, 0.0f, 1.0f, //C
-    -.5f, -.5f,  .5f, 0.0f, 0.5f, //D
+    .5f, -.5f,  .5f,  (1.0f/3.0f), 0.5f, .0f, .0f, 1.0f, //A
+    .5f,  .5f,  .5f,  (1.0f/3.0f), 1.0f, .0f, .0f, 1.0f, //B 
+    -.5f,  .5f,  .5f, 0.0f       , 1.0f, .0f, .0f, 1.0f, //C
+    -.5f, -.5f,  .5f, 0.0f       , 0.5f, .0f, .0f, 1.0f, //D
     
     // Rear face
-    .5f, -.5f, -.5f,  (1.0f/3.0f), .5f,//E
-    .5f,  .5f, -.5f,  (1.0f/3.0f), 1.f,//F
-    -.5f,  .5f, -.5f, 2.f*(1.0f/3.0f), 1.f, //G
-    -.5f, -.5f, -.5f, 2.f*(1.0f/3.0f), .5f, //H
+    .5f, -.5f, -.5f,  (1.0f/3.0f)    , .5f, .0f, .0f, -1.0f, //E
+    .5f,  .5f, -.5f,  (1.0f/3.0f)    , 1.f, .0f, .0f, -1.0f, //F
+    -.5f,  .5f, -.5f, 2.f*(1.0f/3.0f), 1.f, .0f, .0f, -1.0f, //G
+    -.5f, -.5f, -.5f, 2.f*(1.0f/3.0f), .5f, .0f, .0f, -1.0f, //H
     
     // Right face
-    .5f,  .5f,  .5f, .0f, .5f,//B
-    .5f, -.5f,  .5f, .0f, .0f,//A
-    .5f, -.5f, -.5f, (1.0f/3.0f), .0f,//E
-    .5f,  .5f, -.5f, (1.0f/3.0f), .5f,//F
+    .5f,  .5f,  .5f, .0f        , .5f, 1.0f, .0f, .0f, //B
+    .5f, -.5f,  .5f, .0f        , .0f, 1.0f, .0f, .0f, //A
+    .5f, -.5f, -.5f, (1.0f/3.0f), .0f, 1.0f, .0f, .0f, //E
+    .5f,  .5f, -.5f, (1.0f/3.0f), .5f, 1.0f, .0f, .0f, //F
     
     // Left face
-    -.5f, -.5f,  .5f, 1.f, .5f,//D
-    -.5f,  .5f,  .5f, 1.f, 1.f,//C
-    -.5f,  .5f, -.5f, 2.f*(1.0f/3.0f), 1.f,//G
-    -.5f, -.5f, -.5f, 2.f*(1.0f/3.0f), .5f,//H
+    -.5f, -.5f,  .5f, 1.f            , .5f, -1.0f, .0f, .0f, //D
+    -.5f,  .5f,  .5f, 1.f            , 1.f, -1.0f, .0f, .0f, //C
+    -.5f,  .5f, -.5f, 2.f*(1.0f/3.0f), 1.f, -1.0f, .0f, .0f, //G
+    -.5f, -.5f, -.5f, 2.f*(1.0f/3.0f), .5f, -1.0f, .0f, .0f, //H
     
     // Top face
-    .5f,  .5f,  .5f, 2.f*(1.0f/3.0f), .0f,//B 
-    .5f,  .5f, -.5f, 2.f*(1.0f/3.0f), .5f,//F
-    -.5f,  .5f, -.5f,(1.0f/3.0f), .5f, //G
-    -.5f,  .5f,  .5f,(1.0f/3.0f), .0f, //C
+    .5f,  .5f,  .5f, 2.f*(1.0f/3.0f), .0f, .0f, 1.0f, .0f, //B 
+    .5f,  .5f, -.5f, 2.f*(1.0f/3.0f), .5f, .0f, 1.0f, .0f, //F
+    -.5f,  .5f, -.5f,(1.0f/3.0f)    , .5f, .0f, 1.0f, .0f, //G
+    -.5f,  .5f,  .5f,(1.0f/3.0f)    , .0f, .0f, 1.0f, .0f, //C
     
     // Bottom face
-    .5f, -.5f,  .5f,  1.f, .5f,//A
-    .5f, -.5f, -.5f,  1.f, .0f,//E
-    -.5f, -.5f, -.5f, 2.f*(1.0f/3.0f), .0f, //H
-    -.5f, -.5f,  .5f, 2.f*(1.0f/3.0f), .5f //D
+    .5f, -.5f,  .5f,  1.f            , .5f, .0f, -1.0f, .0f, //A
+    .5f, -.5f, -.5f,  1.f            , .0f, .0f, -1.0f, .0f, //E
+    -.5f, -.5f, -.5f, 2.f*(1.0f/3.0f), .0f, .0f, -1.0f, .0f, //H
+    -.5f, -.5f,  .5f, 2.f*(1.0f/3.0f), .5f, .0f, -1.0f, .0f //D
 };
-
 
 u32 global_cube_index_data[]  = 
 {
@@ -155,10 +154,10 @@ GLFWwindow* startup(u32 window_width, f32 aspect_ratio)
     create_lighting_program(&(global_state.lighting_program));
     global_state.container_texture_id = gl_create_texture2d("container_cube.jpg", GL_RGB, GL_UNSIGNED_BYTE);
     // Create a generic position, textureUV VAO which can be reused by other attribute streams that have the same format
-    GLAttributeFormat attribute_formats[2] = {{3, GL_FLOAT, GL_FALSE, 0, 0}, {2, GL_FLOAT, GL_FALSE, 3 * sizeof(f32), 0}};
-    global_state.xyz_uv = gl_create_interleaved_attributes_vao(attribute_formats, ARRAY_LENGTH(attribute_formats));
+    GLAttributeFormat attribute_formats[3] = {{3, GL_FLOAT, GL_FALSE, 0}, {2, GL_FLOAT, GL_FALSE, 0}, {3, GL_FLOAT, GL_FALSE, 0}};
+    global_state.xyz_uv_nxnynz = gl_create_interleaved_attributes_vao(attribute_formats, ARRAY_LENGTH(attribute_formats));
     // Upload attribute stream data to GPU
-    global_state.cube_xyz_uv = gl_create_vertex_attributes_data(global_cube_vertex_data, sizeof(global_cube_vertex_data), global_cube_index_data, sizeof(global_cube_index_data));
+    global_state.cube_xyz_uv_nxnynz = gl_create_vertex_attributes_data(global_cube_vertex_data, sizeof(global_cube_vertex_data), global_cube_index_data, sizeof(global_cube_index_data));
     
     global_state.camera.near_plane_distance = 0.1f;
     global_state.camera.far_plane_distance = 100.f;
@@ -294,13 +293,14 @@ int main()
         // Setup attribute stream, setup the shader and draw!
         hmm_v4 light_color = {1.0f, 0.0f, 0.0f, 1.0f};
         hmm_v3 light_position = {};
-        gl_bind_vao(&global_state.xyz_uv, &global_state.cube_xyz_uv);
+        gl_bind_vao(&global_state.xyz_uv_nxnynz, &global_state.cube_xyz_uv_nxnynz);
         use_lighting_program(&global_state.lighting_program, global_state.container_texture_id, {}, &to_world_space, &to_camera_space, &perspective_transform, false, light_color);
-        GL(glDrawElements(GL_TRIANGLES, global_state.cube_xyz_uv.num_indices, GL_UNSIGNED_INT, 0));
+        GL(glDrawElements(GL_TRIANGLES, global_state.cube_xyz_uv_nxnynz.num_indices, GL_UNSIGNED_INT, 0));
         
-        to_world_space = HMM_Translate(light_position);
+        
+        to_world_space = HMM_Translate(light_position) * HMM_Scale({0.2f, 0.2f, 0.2f});
         use_lighting_program(&global_state.lighting_program, 0, light_color, &to_world_space, &to_camera_space, &perspective_transform, true, {});
-        GL(glDrawElements(GL_TRIANGLES, global_state.cube_xyz_uv.num_indices, GL_UNSIGNED_INT, 0));
+        GL(glDrawElements(GL_TRIANGLES, global_state.cube_xyz_uv_nxnynz.num_indices, GL_UNSIGNED_INT, 0));
         
         frame_end(window);
         end_time = glfwGetTime();

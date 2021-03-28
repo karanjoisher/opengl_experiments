@@ -69,7 +69,8 @@ GLInterleavedAttributesVAO gl_create_interleaved_attributes_vao(GLAttributeForma
         GLAttributeFormat *attribute_format = attribute_formats + i; 
         GL(glEnableVertexAttribArray(i));
         GL(glVertexAttribFormat(i, attribute_format->num_components, attribute_format->data_type, attribute_format->should_normalize, vao.stride));
-        GL(glVertexAttribBinding(i, attribute_format->source_buffer_binding_point));
+        ASSERT(vao.source_buffer_binding_point == attribute_format->source_buffer_binding_point, "Source buffer binding point for attribute %d is not the same as other attributes. For an interleaved VAO all attribute formats must read from same vertex attribute data buffer", i);
+        GL(glVertexAttribBinding(i, vao.source_buffer_binding_point));
         
         switch(attribute_format->data_type)
         {
@@ -79,7 +80,7 @@ GLInterleavedAttributesVAO gl_create_interleaved_attributes_vao(GLAttributeForma
             }break;
             default:
             {
-                ASSERT(false, "Attribute data type is currently not handled for stride calculation"); 
+                ASSERT(false, "Attribute data type for attribute %d  is currently not handled for stride calculation", i); 
             }break;
         }
     }
@@ -101,6 +102,7 @@ GLVertexAttributesData gl_create_vertex_attributes_data(void *vertex_data, u32 v
         GL(glGenBuffers(1, &(result.ebo)));
         GL(glBindBuffer(GL_ARRAY_BUFFER, result.ebo));
         GL(glBufferData(GL_ARRAY_BUFFER, index_data_size, index_data, GL_STATIC_DRAW));
+        // TODO(Karan): Index values can be 16 bits, in order to support that we need to take in the size of individual index as an argument. Currently we are allowing only  32-bits
         result.num_indices = index_data_size/sizeof(u32);
     }
     

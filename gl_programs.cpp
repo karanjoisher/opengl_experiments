@@ -10,6 +10,8 @@ struct LightingProgram
     GLuint object_color;
     GLuint lighting_disabled;
     GLuint light_color;
+    GLuint ambient_light_fraction;
+    GLuint ambientness;
 };
 
 
@@ -44,8 +46,9 @@ fs_texture_uv = vs_texture_uv;
     uniform sampler2D texture2d_sampler;
 uniform vec4 object_color;
 uniform int lighting_disabled;
-uniform vec4 light_color;
-
+uniform vec3 light_color;
+uniform float ambient_light_fraction;
+uniform float ambientness;
 out vec4 FragColor;
 
 void main()
@@ -62,7 +65,10 @@ color = texture(texture2d_sampler, fs_texture_uv);
 
 if(lighting_disabled == 0)
 {
- color = color * light_color;
+
+vec3 incident_ambient_light = ambient_light_fraction * light_color;
+vec4 reflected_ambient = vec4(ambientness * color.rgb * incident_ambient_light, color.a);
+ color = reflected_ambient;
 }
 
 FragColor = color;
@@ -79,9 +85,11 @@ FragColor = color;
     GL(program->object_color = glGetUniformLocation(program->program_id, "object_color"));
     GL(program->lighting_disabled = glGetUniformLocation(program->program_id, "lighting_disabled"));
     GL(program->light_color = glGetUniformLocation(program->program_id, "light_color"));
+    GL(program->ambient_light_fraction = glGetUniformLocation(program->program_id, "ambient_light_fraction"));
+    GL(program->ambientness = glGetUniformLocation(program->program_id, "ambientness"));
 }
 
-void use_lighting_program(LightingProgram *program, GLuint texture_id, hmm_v4 object_color, hmm_mat4 *to_world_space, hmm_mat4 *to_camera_space, hmm_mat4 *perspective_transform, bool lighting_disabled, hmm_v4 light_color)
+void use_lighting_program(LightingProgram *program, GLuint texture_id, hmm_v4 object_color, hmm_mat4 *to_world_space, hmm_mat4 *to_camera_space, hmm_mat4 *perspective_transform, bool lighting_disabled, hmm_v3 light_color, f32 ambient_light_fraction, f32 ambientness)
 {
     // TODO(Karan): This function can probably take in a VAO spec and the Vertex Attribute stream and bind them here i.e. this function can take in values required to setup its vertex input. 
     
@@ -100,5 +108,7 @@ void use_lighting_program(LightingProgram *program, GLuint texture_id, hmm_v4 ob
     
     GL(glUniform4fv(program->object_color, 1, (GLfloat*)(object_color.Elements)));
     GL(glUniform1i(program->lighting_disabled, lighting_disabled ? 1 : 0));
-    GL(glUniform4fv(program->light_color, 1, (GLfloat*)(light_color.Elements)));
+    GL(glUniform3fv(program->light_color, 1, (GLfloat*)(light_color.Elements)));
+    GL(glUniform1f(program->ambient_light_fraction, ambient_light_fraction));
+    GL(glUniform1f(program->ambientness, ambientness));
 }

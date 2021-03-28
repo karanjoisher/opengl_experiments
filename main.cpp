@@ -34,12 +34,17 @@ struct State
     GLVertexAttributesData cube_xyz_uv_nxnynz;
     hmm_v3 cube_translation;
     hmm_v3 cube_rotation;
+    f32 cube_ambientness;
     
     bool show_demo_window;
     
     Camera camera;
     f32 camera_speed_per_sec;
     f32 camera_sensitivity;
+    
+    hmm_v3 light_color;
+    hmm_v3 light_position;
+    f32 ambient_light_fraction;
 };
 
 State global_state = {};
@@ -150,10 +155,13 @@ GLFWwindow* startup(u32 window_width, f32 aspect_ratio)
     framebuffer_size_callback(window, window_width, window_height);
     
     // Initialize global state
+    global_state.cube_translation = {0.0f, 0.0f, -3.0f};
+    global_state.cube_ambientness = 1.0f;
     global_state.show_demo_window = false;
     create_lighting_program(&(global_state.lighting_program));
     global_state.container_texture_id = gl_create_texture2d("container_cube.jpg", GL_RGB, GL_UNSIGNED_BYTE);
-    // Create a generic position, textureUV VAO which can be reused by other attribute streams that have the same format
+    
+    // Create a generic position, textureUV, Normal VAO which can be reused by other attribute streams that have the same format
     GLAttributeFormat attribute_formats[3] = {{3, GL_FLOAT, GL_FALSE, 0}, {2, GL_FLOAT, GL_FALSE, 0}, {3, GL_FLOAT, GL_FALSE, 0}};
     global_state.xyz_uv_nxnynz = gl_create_interleaved_attributes_vao(attribute_formats, ARRAY_LENGTH(attribute_formats));
     // Upload attribute stream data to GPU
@@ -163,12 +171,15 @@ GLFWwindow* startup(u32 window_width, f32 aspect_ratio)
     global_state.camera.far_plane_distance = 100.f;
     global_state.camera.fov_radians = HMM_ToRadians(90.0f);
     global_state.camera.aspect_ratio = aspect_ratio;
-    global_state.camera.looking_direction = RIGHT_HANDED_COORDINATE_SYSTEM_VIEWING_ALONG_POSITIVE_Z_AXIS;
+    global_state.camera.looking_direction = RIGHT_HANDED_COORDINATE_SYSTEM_VIEWING_ALONG_NEGATIVE_Z_AXIS;
     hmm_v3 zero_rot = {};
     set_rotation(&global_state.camera, &zero_rot);
     global_state.camera_speed_per_sec = 2.0f;
     global_state.camera_sensitivity = 0.05f;
     
+    global_state.light_color = {1.0f, 0.0f, 0.0f};
+    global_state.light_position = {0.0f, 0.0f, -1.5f};
+    global_state.ambient_light_fraction = 0.3f;
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -244,6 +255,10 @@ int main()
         ImGui::BulletText("While moving you can use the mouse to rotate the camera");
         ImGui::BulletText("While not moving you can hold down ALT+Left mouse button and then drag the mouse to rotate camera");
         
+        ImGui::DragFloat3("light color", global_state.light_color.Elements, 0.01f, 0.0f, 0.0f);
+        ImGui::DragFloat("ambient light factor", &global_state.ambient_light_fraction, 0.01f, 0.0f, 0.0f);
+        ImGui::DragFloat("cube ambientness", &global_state.cube_ambientness, 0.01f, 0.0f, 0.0f);
+        
         // Camera movement
         hmm_vec3 camera_movement_dir = {};
         if(glfwGetKey(window, GLFW_KEY_W)) camera_movement_dir += ((f32)global_state.camera.looking_direction*global_state.camera.axis[2]);
@@ -291,15 +306,14 @@ int main()
         
         
         // Setup attribute stream, setup the shader and draw!
-        hmm_v4 light_color = {1.0f, 0.0f, 0.0f, 1.0f};
-        hmm_v3 light_position = {};
         gl_bind_vao(&global_state.xyz_uv_nxnynz, &global_state.cube_xyz_uv_nxnynz);
-        use_lighting_program(&global_state.lighting_program, global_state.container_texture_id, {}, &to_world_space, &to_camera_space, &perspective_transform, false, light_color);
+        use_lighting_program(&global_state.lighting_program, global_state.container_texture_id, {}, &to_world_space, &to_camera_space, &perspective_transform, false, global_state.light_color, global_state.ambient_light_fraction, global_state.cube_ambientness);
         GL(glDrawElements(GL_TRIANGLES, global_state.cube_xyz_uv_nxnynz.num_indices, GL_UNSIGNED_INT, 0));
         
         
-        to_world_space = HMM_Translate(light_position) * HMM_Scale({0.2f, 0.2f, 0.2f});
-        use_lighting_program(&global_state.lighting_program, 0, light_color, &to_world_space, &to_camera_space, &perspective_transform, true, {});
+        to_world_space = HMM_Translate(global_state.light_position) * HMM_Scale({0.2f, 0.2f, 0.2f});
+        hmm_v4 light_color = {global_state.light_color.X, global_state.light_color.Y, global_state.light_color.Z, 1.0f};
+        use_lighting_program(&global_state.lighting_program, 0, light_color, &to_world_space, &to_camera_space, &perspective_transform, true, {}, .0f, .0f);
         GL(glDrawElements(GL_TRIANGLES, global_state.cube_xyz_uv_nxnynz.num_indices, GL_UNSIGNED_INT, 0));
         
         frame_end(window);

@@ -35,6 +35,9 @@ struct State
     hmm_v3 cube_translation;
     hmm_v3 cube_rotation;
     f32 cube_ambientness;
+    f32 cube_diffuseness;
+    f32 cube_specularness;
+    f32 cube_specular_unscatterness;
     
     bool show_demo_window;
     
@@ -157,6 +160,9 @@ GLFWwindow* startup(u32 window_width, f32 aspect_ratio)
     // Initialize global state
     global_state.cube_translation = {0.0f, 0.0f, -3.0f};
     global_state.cube_ambientness = 1.0f;
+    global_state.cube_diffuseness = 1.0f;
+    global_state.cube_specularness = 1.0f;
+    global_state.cube_specular_unscatterness = 1.0f;
     global_state.show_demo_window = false;
     create_lighting_program(&(global_state.lighting_program));
     global_state.container_texture_id = gl_create_texture2d("container_cube.jpg", GL_RGB, GL_UNSIGNED_BYTE);
@@ -177,7 +183,7 @@ GLFWwindow* startup(u32 window_width, f32 aspect_ratio)
     global_state.camera_speed_per_sec = 2.0f;
     global_state.camera_sensitivity = 0.05f;
     
-    global_state.light_color = {1.0f, 0.0f, 0.0f};
+    global_state.light_color = {1.0f, 1.0f, 1.0f};
     global_state.light_position = {0.0f, 0.0f, -1.5f};
     global_state.ambient_light_fraction = 0.3f;
     // Setup Dear ImGui context
@@ -255,16 +261,22 @@ int main()
         ImGui::BulletText("While moving you can use the mouse to rotate the camera");
         ImGui::BulletText("While not moving you can hold down ALT+Left mouse button and then drag the mouse to rotate camera");
         
+        ImGui::DragFloat3("light pos", global_state.light_position.Elements, 0.01f, 0.0f, 0.0f);
         ImGui::DragFloat3("light color", global_state.light_color.Elements, 0.01f, 0.0f, 0.0f);
         ImGui::DragFloat("ambient light factor", &global_state.ambient_light_fraction, 0.01f, 0.0f, 0.0f);
         ImGui::DragFloat("cube ambientness", &global_state.cube_ambientness, 0.01f, 0.0f, 0.0f);
+        ImGui::DragFloat("cube diffuseness", &global_state.cube_diffuseness, 0.01f, 0.0f, 0.0f);
+        ImGui::DragFloat("cube specularness", &global_state.cube_specularness, 0.01f, 0.0f, 0.0f);
+        ImGui::DragFloat("cube specular unscatterness", &global_state.cube_specular_unscatterness, 0.01f, 0.0f, 0.0f);
         
         // Camera movement
         hmm_vec3 camera_movement_dir = {};
-        if(glfwGetKey(window, GLFW_KEY_W)) camera_movement_dir += ((f32)global_state.camera.looking_direction*global_state.camera.axis[2]);
-        if(glfwGetKey(window, GLFW_KEY_S)) camera_movement_dir -= ((f32)global_state.camera.looking_direction*global_state.camera.axis[2]);
-        if(glfwGetKey(window, GLFW_KEY_A)) camera_movement_dir += ((f32)global_state.camera.looking_direction*global_state.camera.axis[0]);
-        if(glfwGetKey(window, GLFW_KEY_D)) camera_movement_dir -= ((f32)global_state.camera.looking_direction*global_state.camera.axis[0]);
+        if(glfwGetKey(window, GLFW_KEY_W)) camera_movement_dir += ((f32)global_state.camera.looking_direction*global_state.camera.axis[Z_AXIS]);
+        if(glfwGetKey(window, GLFW_KEY_S)) camera_movement_dir -= ((f32)global_state.camera.looking_direction*global_state.camera.axis[Z_AXIS]);
+        if(glfwGetKey(window, GLFW_KEY_A)) camera_movement_dir += ((f32)global_state.camera.looking_direction*global_state.camera.axis[X_AXIS]);
+        if(glfwGetKey(window, GLFW_KEY_D)) camera_movement_dir -= ((f32)global_state.camera.looking_direction*global_state.camera.axis[X_AXIS]);
+        if(glfwGetKey(window, GLFW_KEY_R)) camera_movement_dir += global_state.camera.axis[Y_AXIS];
+        if(glfwGetKey(window, GLFW_KEY_F)) camera_movement_dir -= global_state.camera.axis[Y_AXIS];
         camera_movement_dir = HMM_NormalizeVec3(camera_movement_dir);
         bool camera_moved = camera_movement_dir.X != 0.0f || camera_movement_dir.Y != 0.0f || camera_movement_dir.Z != 0.0f; 
         global_state.camera.pos += (camera_movement_dir * global_state.camera_speed_per_sec * d_t);
@@ -304,16 +316,15 @@ int main()
         hmm_mat4 perspective_transform = {};
         create_perspective_transform(&perspective_transform, global_state.camera.near_plane_distance, global_state.camera.far_plane_distance, global_state.camera.fov_radians, global_state.camera.aspect_ratio, global_state.camera.looking_direction);
         
-        
         // Setup attribute stream, setup the shader and draw!
         gl_bind_vao(&global_state.xyz_uv_nxnynz, &global_state.cube_xyz_uv_nxnynz);
-        use_lighting_program(&global_state.lighting_program, global_state.container_texture_id, {}, &to_world_space, &to_camera_space, &perspective_transform, false, global_state.light_color, global_state.ambient_light_fraction, global_state.cube_ambientness);
+        use_lighting_program(&global_state.lighting_program, global_state.container_texture_id, {}, &to_world_space, &to_camera_space, &perspective_transform, false, global_state.light_position, global_state.light_color, global_state.ambient_light_fraction, global_state.cube_ambientness, global_state.cube_diffuseness, global_state.cube_specularness, global_state.cube_specular_unscatterness);
         GL(glDrawElements(GL_TRIANGLES, global_state.cube_xyz_uv_nxnynz.num_indices, GL_UNSIGNED_INT, 0));
         
         
-        to_world_space = HMM_Translate(global_state.light_position) * HMM_Scale({0.2f, 0.2f, 0.2f});
+        to_world_space = HMM_Translate(global_state.light_position) * HMM_Scale({0.05f, 0.05f, 0.05f});
         hmm_v4 light_color = {global_state.light_color.X, global_state.light_color.Y, global_state.light_color.Z, 1.0f};
-        use_lighting_program(&global_state.lighting_program, 0, light_color, &to_world_space, &to_camera_space, &perspective_transform, true, {}, .0f, .0f);
+        use_lighting_program(&global_state.lighting_program, 0, light_color, &to_world_space, &to_camera_space, &perspective_transform, true, {}, {}, .0f, .0f, .0f, .0f, .0f);
         GL(glDrawElements(GL_TRIANGLES, global_state.cube_xyz_uv_nxnynz.num_indices, GL_UNSIGNED_INT, 0));
         
         frame_end(window);

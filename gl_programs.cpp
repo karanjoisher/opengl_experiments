@@ -84,6 +84,7 @@ else
 color = texture(texture2d_sampler, fs_texture_uv);
 }
 
+vec3 normal = normalize(vertex_normal_in_camera_space);
 if(lighting_disabled == 0)
 {
 
@@ -92,7 +93,6 @@ vec3 incident_ambient_light = ambient_light_fraction * light_color;
 vec3 reflected_ambient = ambientness * color.rgb * incident_ambient_light;
 
 // Diffuse light
-vec3 normal = normalize(vertex_normal_in_camera_space);
 vec3 vertex_to_light_dir = normalize(light_pos_in_camera_space - vertex_pos_in_camera_space);
 float diffuse_light_reflected_fraction = max(0.0f, dot(vertex_to_light_dir, normal));
 vec3 reflected_diffuse = diffuseness * diffuse_light_reflected_fraction * color.rgb * light_color;
@@ -115,7 +115,7 @@ reflected_specular = specularness * specular_light_reflected_fraction * color.rg
 color = vec4(reflected_ambient + reflected_diffuse + reflected_specular, color.a);
 }
 
-FragColor = color;
+FragColor = color; //vec4(normal, 1.0f);
 }
 )FOO";
     
@@ -163,4 +163,49 @@ void use_lighting_program(LightingProgram *program, GLuint texture_id, hmm_v4 ob
     GL(glUniform1f(program->diffuseness, diffuseness));
     GL(glUniform1f(program->specularness, specularness));
     GL(glUniform1f(program->specular_unscatterness, specular_unscatterness));
+}
+
+
+GLuint create_texture_blit_program()
+{
+    char *vertex_source = R"FOO(
+    #version 330 core
+    
+layout (location = 0) in vec2 quad_xy;
+layout (location = 1) in vec2 vs_quad_uv;
+
+out vec2 fs_quad_uv;
+
+void main()
+{
+gl_Position =  vec4(quad_xy, 0.0f, 1.0f);
+fs_quad_uv = vs_quad_uv;
+}
+
+)FOO";
+    
+    char *fragment_source = R"FOO(
+    #version 330 core
+    
+    in vec2 fs_quad_uv;
+    uniform sampler2D texture2d_sampler;
+out vec4 FragColor;
+
+void main()
+{
+FragColor = texture(texture2d_sampler, fs_quad_uv);
+}
+)FOO";
+    
+    GLuint program_id = gl_create_program(vertex_source, fragment_source);
+    gl_set_uniform_1i(program_id, "texture2d_sampler", 0);
+    return program_id;
+}
+
+
+void use_texture_blit_program(GLuint program_id, GLuint texture_id)
+{
+    GL(glUseProgram(program_id));
+    GL(glActiveTexture(GL_TEXTURE0)); 
+    GL(glBindTexture(GL_TEXTURE_2D, texture_id));
 }

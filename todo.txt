@@ -19,3 +19,10 @@
 {
     [] Add mouse controlled position control (something like holding space and then dragging to move the object) and object rotation control (like in any 3d model viewer). Currently it is driven by DearImGui form fields which does the job but is cumbersome to use.
 }
+
+[] Debugging shaders using framebuffers
+{
+    [X] Setup framebuffer
+    [X] Figure out how to properly set viewport inorder to correctly blit the framebuffer texture to screen
+    [] Debug normals and lighting code using the Debug FBO
+}

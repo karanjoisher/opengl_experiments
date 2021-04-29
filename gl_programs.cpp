@@ -84,10 +84,10 @@ else
 color = texture(texture2d_sampler, fs_texture_uv);
 }
 
-vec3 normal = normalize(vertex_normal_in_camera_space);
+
 if(lighting_disabled == 0)
 {
-
+vec3 normal = normalize(vertex_normal_in_camera_space);
 // Ambient light
 vec3 incident_ambient_light = ambient_light_fraction * light_color;
 vec3 reflected_ambient = ambientness * color.rgb * incident_ambient_light;
@@ -98,10 +98,6 @@ float diffuse_light_reflected_fraction = max(0.0f, dot(vertex_to_light_dir, norm
 vec3 reflected_diffuse = diffuseness * diffuse_light_reflected_fraction * color.rgb * light_color;
 
 // Specular light
-/*
-TODO(Karan): When cube is rotated 45 degrees about the Y axis the cube renders completely dark, this seems wrong, i expected some areas of the two faces in view of camera to have some lighting. However I think the reflected rays make an angle of 90 degrees with viewing direction in this scenario and because of this entire cube renders black. Verify this!
-*/
-
 vec3 reflected_specular = vec3(.0f, .0f, .0f);
 if(dot(vertex_to_light_dir, normal) >= 0) // Do not light from behind the surface's facing direction!
 {
@@ -115,7 +111,7 @@ reflected_specular = specularness * specular_light_reflected_fraction * color.rg
 color = vec4(reflected_ambient + reflected_diffuse + reflected_specular, color.a);
 }
 
-FragColor = color; //vec4(normal, 1.0f);
+FragColor = color;
 }
 )FOO";
     

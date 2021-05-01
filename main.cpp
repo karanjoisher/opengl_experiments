@@ -31,19 +31,16 @@ struct State
     GLInterleavedAttributesVAO xyz_uv_nxnynz;
     GLInterleavedAttributesVAO xy_uv;
     
-    GLuint container_texture_id;
-    f32 aspect_ratio;
-    
     GLVertexAttributesData cube_xyz_uv_nxnynz;
     GLVertexAttributesData quad_xy_uv;
     
     hmm_v3 cube_translation;
     hmm_v3 cube_rotation;
-    f32 cube_ambientness;
-    f32 cube_diffuseness;
-    f32 cube_specularness;
-    f32 cube_specular_unscatterness;
+    GLuint container_texture_id;
+    GLuint container_ambient_diffuse_specular_shinniness_map_id;
+    hmm_v4 default_ambient_diffuse_specular_shinniness;
     
+    f32 aspect_ratio;
     bool show_demo_window;
     
     Camera camera;
@@ -167,16 +164,16 @@ GLFWwindow* startup(State* state, u32 window_width, f32 aspect_ratio)
     
     //// Initialize global state
     
-    // Cube properties
-    state->cube_translation = {0.0f, 0.0f, -3.0f};
-    state->cube_ambientness = 1.0f;
-    state->cube_diffuseness = 1.0f;
-    state->cube_specularness = 1.0f;
-    state->cube_specular_unscatterness = 1.0f;
-    state->show_demo_window = false;
+    // Create Shaders
     create_lighting_program(&(state->lighting_program));
     state->texture_blit_program = create_texture_blit_program();
+    
+    // Cube properties
+    state->cube_translation = {0.0f, 0.0f, -3.0f};
+    state->default_ambient_diffuse_specular_shinniness = {1.0f, 1.0f, 1.0f, 1.0f};
+    state->show_demo_window = false;
     state->container_texture_id = gl_create_texture2d("container_cube.jpg", GL_RGB, GL_UNSIGNED_BYTE);
+    state->container_ambient_diffuse_specular_shinniness_map_id = gl_create_texture2d("container_ambient_diffuse_specular_shinniness_map.png", GL_RGBA, GL_UNSIGNED_BYTE);
     
     // Create a generic position, textureUV, Normal VAO which can be reused by other attribute streams that have the same format
     GLAttributeFormat attribute_formats_xyz_uv_nxnynz[3] = {{3, GL_FLOAT, GL_FALSE, 0}, {2, GL_FLOAT, GL_FALSE, 0}, {3, GL_FLOAT, GL_FALSE, 0}};
@@ -213,7 +210,7 @@ GLFWwindow* startup(State* state, u32 window_width, f32 aspect_ratio)
     // Light properties
     state->light_color = {1.0f, 1.0f, 1.0f};
     state->light_position = {0.0f, 0.0f, -1.5f};
-    state->ambient_light_fraction = 0.3f;
+    state->ambient_light_fraction = 1.0f;
     
     // Debug framebuffer
     GLuint color_texture_id,  depth_buffer_object, framebuffer_width = 1920, framebuffer_height = 1080;
@@ -243,7 +240,6 @@ GLFWwindow* startup(State* state, u32 window_width, f32 aspect_ratio)
     state->debug_fbo_height = framebuffer_height;
     GL(glBindFramebuffer(GL_FRAMEBUFFER, 0)); 
     
-    
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -260,7 +256,6 @@ inline void frame_start(GLFWwindow *window, State* state)
 {
     glfwPollEvents();
     if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) glfwSetWindowShouldClose(window, true);
-    // Start the Dear ImGui frame
     if(state->enable_debug_fbo)
     {
         GL(glBindFramebuffer(GL_FRAMEBUFFER, state->debug_fbo)); 
@@ -276,9 +271,7 @@ inline void frame_start(GLFWwindow *window, State* state)
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
-    // 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
     if(state->show_demo_window) ImGui::ShowDemoWindow(&state->show_demo_window);
-    
 }
 
 inline void frame_end(GLFWwindow *window, State* state)
@@ -328,41 +321,47 @@ int main()
     while (!glfwWindowShouldClose(window))
     {
         frame_start(window, &global_state);
-        
         GL(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
+        
+        //// Imgui Inputs
+        
+        // Cube properties
         ImGui::DragFloat3("cube pos", global_state.cube_translation.Elements, 0.01f, 0.0f, 0.0f);
-        ImGui::DragFloat3("cube rot", global_state.cube_rotation.Elements, 0.01f, 0.0f, 0.0f);
+        ImGui::DragFloat3("cube rot", global_state.cube_rotation.Elements, 1.00f, 0.0f, 0.0f);
+        ImGui::DragFloat4("cube ambient diffuse specular shinniness", global_state.default_ambient_diffuse_specular_shinniness.Elements, 0.01f, 0.0f, 0.0f);
+        
+        // Camera properties
+        ImGui::Dummy(ImVec2(0.0f, 20.0f)); 
+        ImGui::BulletText("In order to move camera use WASD. R & F to move camera up and down.");
+        ImGui::BulletText("While moving you can use the mouse to rotate the camera");
+        ImGui::BulletText("While not moving you can hold down ALT+Left mouse button and then drag the mouse to rotate camera");
         ImGui::DragFloat("cam speed", &global_state.camera_speed_per_sec, 0.01f, 0.0f, 0.0f); 
         ImGui::DragFloat("cam sensitivity", &global_state.camera_sensitivity, 0.01f, 0.0f, 0.0f);
-        
-        ImGui::RadioButton("Looking down +ve Z Axis", (s32*)&global_state.camera.looking_direction, (s32)RIGHT_HANDED_COORDINATE_SYSTEM_VIEWING_ALONG_POSITIVE_Z_AXIS); ImGui::SameLine();
-        ImGui::RadioButton("Looking down -ve Z Axis", (s32*)&global_state.camera.looking_direction, (s32)RIGHT_HANDED_COORDINATE_SYSTEM_VIEWING_ALONG_NEGATIVE_Z_AXIS);
-        
-        ImGui::Dummy(ImVec2(0.0f, 20.0f)); //Spacing
-        ImGui::BulletText("Debug FBO is a RGBA buffer with each component being f32. This can be used to capture and debug floating point values in Render Doc (Default FBO clamps negative values to 0)");
-        ImGui::RadioButton("Enable debug fbo", (s32*)&global_state.enable_debug_fbo_on_next_frame, 1); ImGui::SameLine();
-        ImGui::RadioButton("Disable debug fbo", (s32*)&global_state.enable_debug_fbo_on_next_frame, 0);
-        
-        ImGui::Dummy(ImVec2(0.0f, 20.0f)); //Spacing
         ImGui::DragFloat("near", &global_state.camera.near_plane_distance, 0.01f, 0.0f, 0.0f); 
         ImGui::DragFloat("far", &global_state.camera.far_plane_distance, 0.01f, 0.0f, 0.0f); 
         ImGui::DragFloat("fov(radians)", &global_state.camera.fov_radians, 0.01f, 0.0f, 0.0f);
         ImGui::DragFloat("aspect ratio", &global_state.camera.aspect_ratio, 0.01f, 0.0f, 0.0f);
+        ImGui::RadioButton("Looking down +ve Z Axis", (s32*)&global_state.camera.looking_direction, (s32)RIGHT_HANDED_COORDINATE_SYSTEM_VIEWING_ALONG_POSITIVE_Z_AXIS); ImGui::SameLine();
+        ImGui::RadioButton("Looking down -ve Z Axis", (s32*)&global_state.camera.looking_direction, (s32)RIGHT_HANDED_COORDINATE_SYSTEM_VIEWING_ALONG_NEGATIVE_Z_AXIS);
         
-        ImGui::BulletText("In order to move camera use WASD. R & F to move camera up and down.");
-        ImGui::BulletText("While moving you can use the mouse to rotate the camera");
-        ImGui::BulletText("While not moving you can hold down ALT+Left mouse button and then drag the mouse to rotate camera");
+        // Debug FBO settings
+        ImGui::Dummy(ImVec2(0.0f, 20.0f)); 
+        ImGui::BulletText("Debug FBO is a RGBA buffer with each component being f32.");
+        ImGui::BulletText("This can be used to capture and debug floating point values in Render Doc.");
+        ImGui::BulletText("(Default FBO clamps negative values to 0)");
+        ImGui::RadioButton("Enable debug fbo", (s32*)&global_state.enable_debug_fbo_on_next_frame, 1); ImGui::SameLine();
+        ImGui::RadioButton("Disable debug fbo", (s32*)&global_state.enable_debug_fbo_on_next_frame, 0);
         
-        ImGui::Dummy(ImVec2(0.0f, 20.0f)); //Spacing
+        
+        // Light properties
+        ImGui::Dummy(ImVec2(0.0f, 20.0f)); 
         ImGui::DragFloat3("light pos", global_state.light_position.Elements, 0.01f, 0.0f, 0.0f);
         ImGui::DragFloat3("light color", global_state.light_color.Elements, 0.01f, 0.0f, 0.0f);
         ImGui::DragFloat("ambient light factor", &global_state.ambient_light_fraction, 0.01f, 0.0f, 0.0f);
-        ImGui::DragFloat("cube ambientness", &global_state.cube_ambientness, 0.01f, 0.0f, 0.0f);
-        ImGui::DragFloat("cube diffuseness", &global_state.cube_diffuseness, 0.01f, 0.0f, 0.0f);
-        ImGui::DragFloat("cube specularness", &global_state.cube_specularness, 0.01f, 0.0f, 0.0f);
-        ImGui::DragFloat("cube specular unscatterness", &global_state.cube_specular_unscatterness, 0.01f, 0.0f, 0.0f);
         
-        // Camera movement
+        //// Actual processing
+        
+        // Camera movements
         hmm_vec3 camera_movement_dir = {};
         if(glfwGetKey(window, GLFW_KEY_W)) camera_movement_dir += ((f32)global_state.camera.looking_direction*global_state.camera.axis[Z_AXIS]);
         if(glfwGetKey(window, GLFW_KEY_S)) camera_movement_dir -= ((f32)global_state.camera.looking_direction*global_state.camera.axis[Z_AXIS]);
@@ -410,15 +409,14 @@ int main()
         create_perspective_transform(&perspective_transform, global_state.camera.near_plane_distance, global_state.camera.far_plane_distance, global_state.camera.fov_radians, global_state.camera.aspect_ratio, global_state.camera.looking_direction);
         
         // Setup attribute stream, setup the shader and draw!
-        
         gl_bind_vao(&global_state.xyz_uv_nxnynz, &global_state.cube_xyz_uv_nxnynz);
         
-        use_lighting_program(&global_state.lighting_program, global_state.container_texture_id, {}, &to_world_space, &to_camera_space, &perspective_transform, false, global_state.light_position, global_state.light_color, global_state.ambient_light_fraction, global_state.cube_ambientness, global_state.cube_diffuseness, global_state.cube_specularness, global_state.cube_specular_unscatterness);
+        use_lighting_program(&global_state.lighting_program, global_state.container_texture_id, {}, &to_world_space, &to_camera_space, &perspective_transform, false, global_state.light_position, global_state.light_color, global_state.ambient_light_fraction, global_state.container_ambient_diffuse_specular_shinniness_map_id, global_state.default_ambient_diffuse_specular_shinniness);
         GL(glDrawElements(GL_TRIANGLES, global_state.cube_xyz_uv_nxnynz.num_indices, GL_UNSIGNED_INT, 0));
         
         to_world_space = HMM_Translate(global_state.light_position) * HMM_Scale({0.05f, 0.05f, 0.05f});
         hmm_v4 light_color = {global_state.light_color.X, global_state.light_color.Y, global_state.light_color.Z, 1.0f};
-        use_lighting_program(&global_state.lighting_program, 0, light_color, &to_world_space, &to_camera_space, &perspective_transform, true, {}, {}, .0f, .0f, .0f, .0f, .0f);
+        use_lighting_program(&global_state.lighting_program, 0, light_color, &to_world_space, &to_camera_space, &perspective_transform, true, {}, {}, .0f,  0, {});
         GL(glDrawElements(GL_TRIANGLES, global_state.cube_xyz_uv_nxnynz.num_indices, GL_UNSIGNED_INT, 0));
         
         frame_end(window, &global_state);

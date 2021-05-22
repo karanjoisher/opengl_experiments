@@ -4,4 +4,6 @@
 *.cap
 *.pdb
 *.sln
+*.exp
+*.lib
 logs/private

@@ -24,9 +24,9 @@ if not exist build\. mkdir build
 pushd build
 
 set libdir=D:/workspace/libraries
-set include_dirs=/I%libdir%/glfw_3_3_2_winx64_binaries/include/ /I%libdir%/glew_2_1_0_winx86x64_binaries/include/ /I%libdir%/imgui /I%libdir%/stb /I%libdir%/handmademath1_12_0
+set include_dirs=/I%libdir%/glfw_3_3_2_winx64_binaries/include/ /I%libdir%/glew_2_1_0_winx86x64_binaries/include/ /I%libdir%/imgui /I%libdir%/stb /I%libdir%/handmademath1_12_0 /I%libdir%/assimp_5-0-1/include
 
-set libraries=%libdir%/glfw_3_3_2_winx64_binaries/lib-vc2019/glfw3.lib %libdir%/glew_2_1_0_winx86x64_binaries/lib/Release/x64/glew32s.lib %libdir%/imgui/build/imgui_glfw3_3_2_glew2_1_0.lib openGL32.lib kernel32.lib user32.lib Gdi32.lib shell32.lib 
+set libraries=%libdir%/glfw_3_3_2_winx64_binaries/lib-vc2019/glfw3.lib %libdir%/glew_2_1_0_winx86x64_binaries/lib/Release/x64/glew32s.lib %libdir%/imgui/build/imgui_glfw3_3_2_glew2_1_0.lib %libdir%/assimp_5-0-1/lib/Release/assimp-vc142-mt.lib %libdir%/assimp_5-0-1/lib/Release/IrrXML.lib %libdir%/assimp_5-0-1/lib/Release/zlibstatic.lib openGL32.lib kernel32.lib user32.lib Gdi32.lib shell32.lib 
 
 set defines=-D_CRT_SECURE_NO_WARNINGS -DASSERTS_ON
 set compiler_flags=-FC -MD -Gm- -nologo -GR- -EHa- -Oi  -W4 -wd4201 -wd4100 -wd4127 -wd4505 -wd4189 -fp:fast -Z7 -Od 

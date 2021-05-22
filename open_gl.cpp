@@ -1,45 +1,4 @@
-#pragma once
-#include "logging.h"
-#include "stb_image.h"
-
-#ifdef GL_CHECK_ERRORS
-#define GL(f) f; gl_log_errors(#f, __FILE__, __LINE__) 
-#else
-#define GL(f) f;
-#endif
-
-struct GLAttributeFormat
-{
-    GLint num_components;
-    GLenum data_type;
-    GLboolean should_normalize;
-    GLuint source_buffer_binding_point;
-};
-
-
-/*
-DILEMMA(Karan): Interleaved attributes in single buffer VS Continious attributes where each attribute has their own buffer
-Consider an interleaved attribute data stream : xyz_uv
-
-- If some object has the same position values but doesn't have any texture applied to it i.e. the object is just a geometry and has no use of texture UVs (e.g. a Solid colored cube), in such a scenario we can still continue to use the xyz_uv VAO and the attribute data : we would just ignore the uv data stream in vertex shader. So I don't think there is any dilemma wrt this scenario
-- However consider an object which has same position values but different texture UV values, in this scenario we would have to create a different attribute data buffer that contains same pos vals but different texture uv vals. So we are duplicating the cube vertex data!! In order to prevent this we could probably have isolated buffers for each attribute stream (for e.g. a different buffer for both pos and uv vals), and then we can reuse the pos data but create a new buffer for the different texture uv vals.
-
- TODO(Karan): We currently have come across scenario 1 (i.e. we can simply ignore unwanted attribute data streams) but we need to consider what to do for second scenario!
- 
-*/
-struct GLInterleavedAttributesVAO
-{
-    GLuint handle;
-    GLsizei stride;
-    GLuint source_buffer_binding_point;
-};
-
-struct GLVertexAttributesData
-{
-    GLuint vbo;
-    GLuint ebo;
-    GLuint num_indices;
-};
+#include "open_gl.h"
 
 void gl_log_errors(char *function_invocation_expression, char *file, s32 line)
 {
@@ -149,13 +108,13 @@ GLuint gl_create_program(char *vertex_source, char *fragment_source)
         char errors[4096];
         
         GL(glGetShaderInfoLog(vs, sizeof(errors), &ignored, errors));
-        LOG_ERR("Vertex shader compilation error: %s", errors);
+        LOG_ERR("Vertex shader compilation error: %s\n", errors);
         
         GL(glGetShaderInfoLog(fs, sizeof(errors), &ignored, errors));
-        LOG_ERR("Fragment shader compilation error: %s", errors);
+        LOG_ERR("Fragment shader compilation error: %s\n", errors);
         
         GL(glGetProgramInfoLog(program_id, sizeof(errors), &ignored, errors));
-        LOG_ERR("Program linking error: %s", errors);
+        LOG_ERR("Program linking error: %s\n", errors);
         
         ASSERT(false, "OpenGL Program creation failed");
     }
@@ -167,26 +126,46 @@ GLuint gl_create_program(char *vertex_source, char *fragment_source)
 }
 
 
-GLuint gl_create_texture2d(char *image_path, GLint format, GLenum channel_data_type)
+GLuint gl_create_texture2d(const char *image_path)
 {
-    GLuint texture_id;
+    GLuint texture_id = 0;
     stbi_set_flip_vertically_on_load(true);
     s32 image_width, image_height, image_channels;
     u8 *image_data = stbi_load(image_path, &image_width, &image_height, &image_channels, 0);
     
-    GL(glGenTextures(1, &texture_id));
-    GL(glBindTexture(GL_TEXTURE_2D, texture_id));
-    
-    GL(glTexImage2D(GL_TEXTURE_2D, 0, format, image_width, image_height, 0, format, channel_data_type, image_data));
-    GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT));
-    GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT));
-    GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
-    GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
-    
-    stbi_image_free(image_data);
-    
-    GL(glBindTexture(GL_TEXTURE_2D, 0));
-    
+    if(image_data)
+    {
+        GLint format;
+        if(image_channels == 3)
+        {
+            format = GL_RGB;
+        }
+        else if(image_channels == 4)
+        {
+            format = GL_RGBA;
+        }
+        else
+        {
+            format = GL_RGBA;
+            ASSERT(false, "Cannot create texture2d. Currently does not handle %d channels", image_channels);
+        }
+        
+        GLenum channel_data_type = GL_UNSIGNED_BYTE;
+        
+        GL(glGenTextures(1, &texture_id));
+        GL(glBindTexture(GL_TEXTURE_2D, texture_id));
+        
+        
+        GL(glTexImage2D(GL_TEXTURE_2D, 0, format, image_width, image_height, 0, format, channel_data_type, image_data));
+        GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT));
+        GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT));
+        GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
+        GL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+        
+        stbi_image_free(image_data);
+        
+        GL(glBindTexture(GL_TEXTURE_2D, 0));
+    }
     return texture_id;
 }
 

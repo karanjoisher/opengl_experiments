@@ -15,101 +15,20 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
 
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
+
 #include "types.h"
+#include "main.h"
+#include "memory.cpp"
 #include "open_gl.cpp"
 #include "math.cpp"
+
 #include "render.cpp"
 #include "gl_programs.cpp"
 
-#define ARRAY_LENGTH(a) (sizeof(a)/sizeof(a[0]))
-
-struct State
-{
-    LightingProgram lighting_program;
-    GLuint texture_blit_program;
-    
-    GLInterleavedAttributesVAO xyz_uv_nxnynz;
-    GLInterleavedAttributesVAO xy_uv;
-    
-    GLVertexAttributesData cube_xyz_uv_nxnynz;
-    GLVertexAttributesData quad_xy_uv;
-    
-    hmm_v3 cube_translation;
-    hmm_v3 cube_rotation;
-    GLuint container_texture_id;
-    GLuint container_ambient_diffuse_specular_shinniness_map_id;
-    hmm_v4 default_ambient_diffuse_specular_shinniness;
-    
-    f32 aspect_ratio;
-    bool show_demo_window;
-    
-    Camera camera;
-    f32 camera_speed_per_sec;
-    f32 camera_sensitivity;
-    
-    hmm_v3 light_color;
-    hmm_v3 light_position;
-    f32 ambient_light_fraction;
-    
-    // NOTE(Karan): These properties correspond to creation of a floating point framebuffer which can be used to debug vectors as it provides  negative values as well (default framebuffer clips negative values to 0)
-    b32 enable_debug_fbo;
-    b32 enable_debug_fbo_on_next_frame;
-    GLuint debug_fbo;
-    GLuint debug_fbo_color_buffer_texture_id;
-    GLuint debug_fbo_width;
-    GLuint debug_fbo_height;
-};
-
 State global_state = {};
-
-f32 global_cube_vertex_data[] = {
-    //// Local Space Coordinates, Texture UVs
-    // Front face
-    .5f, -.5f,  .5f,  (1.0f/3.0f), 0.5f, .0f, .0f, 1.0f, //A
-    .5f,  .5f,  .5f,  (1.0f/3.0f), 1.0f, .0f, .0f, 1.0f, //B 
-    -.5f,  .5f,  .5f, 0.0f       , 1.0f, .0f, .0f, 1.0f, //C
-    -.5f, -.5f,  .5f, 0.0f       , 0.5f, .0f, .0f, 1.0f, //D
-    
-    // Rear face
-    .5f, -.5f, -.5f,  (1.0f/3.0f)    , .5f, .0f, .0f, -1.0f, //E
-    .5f,  .5f, -.5f,  (1.0f/3.0f)    , 1.f, .0f, .0f, -1.0f, //F
-    -.5f,  .5f, -.5f, 2.f*(1.0f/3.0f), 1.f, .0f, .0f, -1.0f, //G
-    -.5f, -.5f, -.5f, 2.f*(1.0f/3.0f), .5f, .0f, .0f, -1.0f, //H
-    
-    // Right face
-    .5f,  .5f,  .5f, .0f        , .5f, 1.0f, .0f, .0f, //B
-    .5f, -.5f,  .5f, .0f        , .0f, 1.0f, .0f, .0f, //A
-    .5f, -.5f, -.5f, (1.0f/3.0f), .0f, 1.0f, .0f, .0f, //E
-    .5f,  .5f, -.5f, (1.0f/3.0f), .5f, 1.0f, .0f, .0f, //F
-    
-    // Left face
-    -.5f, -.5f,  .5f, 1.f            , .5f, -1.0f, .0f, .0f, //D
-    -.5f,  .5f,  .5f, 1.f            , 1.f, -1.0f, .0f, .0f, //C
-    -.5f,  .5f, -.5f, 2.f*(1.0f/3.0f), 1.f, -1.0f, .0f, .0f, //G
-    -.5f, -.5f, -.5f, 2.f*(1.0f/3.0f), .5f, -1.0f, .0f, .0f, //H
-    
-    // Top face
-    .5f,  .5f,  .5f, 2.f*(1.0f/3.0f), .0f, .0f, 1.0f, .0f, //B 
-    .5f,  .5f, -.5f, 2.f*(1.0f/3.0f), .5f, .0f, 1.0f, .0f, //F
-    -.5f,  .5f, -.5f,(1.0f/3.0f)    , .5f, .0f, 1.0f, .0f, //G
-    -.5f,  .5f,  .5f,(1.0f/3.0f)    , .0f, .0f, 1.0f, .0f, //C
-    
-    // Bottom face
-    .5f, -.5f,  .5f,  1.f            , .5f, .0f, -1.0f, .0f, //A
-    .5f, -.5f, -.5f,  1.f            , .0f, .0f, -1.0f, .0f, //E
-    -.5f, -.5f, -.5f, 2.f*(1.0f/3.0f), .0f, .0f, -1.0f, .0f, //H
-    -.5f, -.5f,  .5f, 2.f*(1.0f/3.0f), .5f, .0f, -1.0f, .0f //D
-};
-
-u32 global_cube_index_data[]  = 
-{
-    0, 1, 2, 2, 3, 0,
-    4, 5, 6, 6, 7, 4,
-    8, 9, 10, 10, 11, 8,
-    12, 13, 14, 14, 15, 12,
-    16, 17, 18, 18, 19, 16,
-    20, 21, 22, 22, 23, 20
-};
 
 void gl_set_default_framebuffer_viewport(GLFWwindow* window, f32 aspect_ratio)
 {
@@ -139,7 +58,7 @@ void gl_set_default_framebuffer_viewport(GLFWwindow* window, f32 aspect_ratio)
     GL(glViewport(x_padding, y_padding, width, height));
 } 
 
-GLFWwindow* startup(State* state, u32 window_width, f32 aspect_ratio)
+GLFWwindow* startup(State* state, u32 window_width, f32 aspect_ratio, char* model_file_path)
 {
     state->aspect_ratio = aspect_ratio;
     
@@ -147,7 +66,7 @@ GLFWwindow* startup(State* state, u32 window_width, f32 aspect_ratio)
     GLFWwindow* window = 0;
     u32 window_height = (u32)(((f32)window_width/aspect_ratio) + 0.5f);
     if (!glfwInit()) return window;
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     window = glfwCreateWindow(window_width, window_height, "OpenGL", NULL, NULL);
@@ -169,19 +88,15 @@ GLFWwindow* startup(State* state, u32 window_width, f32 aspect_ratio)
     state->texture_blit_program = create_texture_blit_program();
     
     // Cube properties
-    state->cube_translation = {0.0f, 0.0f, -3.0f};
-    state->default_ambient_diffuse_specular_shinniness = {1.0f, 1.0f, 1.0f, 1.0f};
+    state->model_scale = 0.05f;
+    state->model_translation = {0.0f, -1.0f, -3.0f};
     state->show_demo_window = false;
-    state->container_texture_id = gl_create_texture2d("container_cube.jpg", GL_RGB, GL_UNSIGNED_BYTE);
-    state->container_ambient_diffuse_specular_shinniness_map_id = gl_create_texture2d("container_ambient_diffuse_specular_shinniness_map.png", GL_RGBA, GL_UNSIGNED_BYTE);
     
     // Create a generic position, textureUV, Normal VAO which can be reused by other attribute streams that have the same format
     GLAttributeFormat attribute_formats_xyz_uv_nxnynz[3] = {{3, GL_FLOAT, GL_FALSE, 0}, {2, GL_FLOAT, GL_FALSE, 0}, {3, GL_FLOAT, GL_FALSE, 0}};
     GLAttributeFormat attribute_formats_xy_uv[2] = {{2, GL_FLOAT, GL_FALSE, 0}, {2, GL_FLOAT, GL_FALSE, 0}};
     state->xyz_uv_nxnynz = gl_create_interleaved_attributes_vao(attribute_formats_xyz_uv_nxnynz, ARRAY_LENGTH(attribute_formats_xyz_uv_nxnynz));
     state->xy_uv = gl_create_interleaved_attributes_vao(attribute_formats_xy_uv, ARRAY_LENGTH(attribute_formats_xy_uv));
-    // Upload attribute stream data to GPU
-    state->cube_xyz_uv_nxnynz = gl_create_vertex_attributes_data(global_cube_vertex_data, sizeof(global_cube_vertex_data), global_cube_index_data, sizeof(global_cube_index_data));
     
     f32 quad_vertex_data[] = {
         // positions   // texCoords
@@ -208,9 +123,11 @@ GLFWwindow* startup(State* state, u32 window_width, f32 aspect_ratio)
     state->camera_sensitivity = 0.05f;
     
     // Light properties
-    state->light_color = {1.0f, 1.0f, 1.0f};
+    // TODO(Karan): Maybe add light fractions/separate light color values for ambient, diffuse, specular
+    state->light_colors[DIFFUSE_LIGHT_COLOR] = {.3f, .3f, .3f};
+    state->light_colors[SPECULAR_LIGHT_COLOR] = {.6f, .6f, .6f};
+    state->light_colors[AMBIENT_LIGHT_COLOR] = {.1f, .1f, .1f};
     state->light_position = {0.0f, 0.0f, -1.5f};
-    state->ambient_light_fraction = 1.0f;
     
     // Debug framebuffer
     GLuint color_texture_id,  depth_buffer_object, framebuffer_width = 1920, framebuffer_height = 1080;
@@ -240,13 +157,17 @@ GLFWwindow* startup(State* state, u32 window_width, f32 aspect_ratio)
     state->debug_fbo_height = framebuffer_height;
     GL(glBindFramebuffer(GL_FRAMEBUFFER, 0)); 
     
+    // Test Assimp
+    state->test_model = temp_load_obj(model_file_path, &(state->memory), state->xyz_uv_nxnynz);
+    state->test_cube_model = temp_load_obj("cube.obj", &(state->memory), state->xyz_uv_nxnynz);
+    
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     ImGui::StyleColorsDark();
     ImGui_ImplGlfw_InitForOpenGL(window, true);
-    ImGui_ImplOpenGL3_Init("#version 330 core");
+    ImGui_ImplOpenGL3_Init("#version 430 core");
     
     return window;
 }
@@ -305,11 +226,40 @@ inline void glfw_get_cursor_pos(GLFWwindow *window, hmm_v2 *mouse_pos)
     mouse_pos->Y = (f32)y;
 }
 
-int main()
+void imgui_model_tree_control(Node *node)
 {
-    u32 window_width = 1280;
-    GLFWwindow* window = startup(&global_state, window_width, 16.0f/9.0f);
+    if(ImGui::TreeNode(node->name))
+    {
+        ImGui::DragFloat3("translate", node->additional_translation.Elements, 1.0f, 0.0f, 0.0f);
+        ImGui::DragFloat3("rotation", node->additional_rotation_degrees.Elements, 1.0f, 0.0f, 0.0f);
+        //ImGui::DragFloat4("row0", &node->_transform.a1, 1.0f, 0.0f, 0.0f);
+        //ImGui::DragFloat4("row1", &node->_transform.b1, 1.0f, 0.0f, 0.0f);
+        //ImGui::DragFloat4("row2", &node->_transform.c1, 1.0f, 0.0f, 0.0f);
+        //ImGui::DragFloat4("row3", &node->_transform.d1, 1.0f, 0.0f, 0.0f);
+        
+        for(s32 i = 0; i < node->num_children; i++)
+        {
+            imgui_model_tree_control(node->children + i);
+        }
+        ImGui::TreePop();
+    }
+}
+
+int main(int argc, char* argv[])
+{
+    char *model_file_path = "lego.fbx";
+    if(argc < 2)
+    {
+        LOG_ERR("Usage: main.exe <path to 3d model file>\nDefaulting to lego.fbx\n");
+    }
+    else
+    {
+        model_file_path = argv[1];
+    }
     
+    u32 window_width = 1280;
+    global_state.memory = create_memory(32*1024*1024);
+    GLFWwindow* window = startup(&global_state, window_width, 16.0f/9.0f, model_file_path);
     if(!window) return -1;
     
     f64 start_time, end_time;
@@ -325,10 +275,13 @@ int main()
         
         //// Imgui Inputs
         
-        // Cube properties
-        ImGui::DragFloat3("cube pos", global_state.cube_translation.Elements, 0.01f, 0.0f, 0.0f);
-        ImGui::DragFloat3("cube rot", global_state.cube_rotation.Elements, 1.00f, 0.0f, 0.0f);
-        ImGui::DragFloat4("cube ambient diffuse specular shinniness", global_state.default_ambient_diffuse_specular_shinniness.Elements, 0.01f, 0.0f, 0.0f);
+        // Model properties
+        ImGui::DragFloat3("model pos", global_state.model_translation.Elements, 0.01f, 0.0f, 0.0f);
+        ImGui::DragFloat3("model rot", global_state.model_rotation.Elements, 1.00f, 0.0f, 0.0f);
+        ImGui::DragFloat("model scale", &global_state.model_scale, 0.01f, 0.0f, 0.0f); 
+        ImGui::BulletText("model tree:");
+        imgui_model_tree_control(global_state.test_model->root);
+        
         
         // Camera properties
         ImGui::Dummy(ImVec2(0.0f, 20.0f)); 
@@ -356,8 +309,9 @@ int main()
         // Light properties
         ImGui::Dummy(ImVec2(0.0f, 20.0f)); 
         ImGui::DragFloat3("light pos", global_state.light_position.Elements, 0.01f, 0.0f, 0.0f);
-        ImGui::DragFloat3("light color", global_state.light_color.Elements, 0.01f, 0.0f, 0.0f);
-        ImGui::DragFloat("ambient light factor", &global_state.ambient_light_fraction, 0.01f, 0.0f, 0.0f);
+        ImGui::DragFloat3("ambient light color", global_state.light_colors[AMBIENT_LIGHT_COLOR].Elements, 0.01f, 0.0f, 0.0f);
+        ImGui::DragFloat3("diffuse light color", global_state.light_colors[DIFFUSE_LIGHT_COLOR].Elements, 0.01f, 0.0f, 0.0f);
+        ImGui::DragFloat3("specular light color", global_state.light_colors[SPECULAR_LIGHT_COLOR].Elements, 0.01f, 0.0f, 0.0f);
         
         //// Actual processing
         
@@ -400,7 +354,7 @@ int main()
         }
         
         
-        hmm_mat4 to_world_space  = HMM_Translate(global_state.cube_translation) * Z_ROTATE(global_state.cube_rotation.Z) * Y_ROTATE(global_state.cube_rotation.Y) * X_ROTATE(global_state.cube_rotation.X);
+        hmm_mat4 to_world_space  = HMM_Translate(global_state.model_translation) * Z_ROTATE(global_state.model_rotation.Z) * Y_ROTATE(global_state.model_rotation.Y) * X_ROTATE(global_state.model_rotation.X) * HMM_Scale({global_state.model_scale, global_state.model_scale, global_state.model_scale});
         
         hmm_mat4 to_camera_space = {};
         create_to_camera_space_transform(&to_camera_space, &global_state.camera);
@@ -408,16 +362,11 @@ int main()
         hmm_mat4 perspective_transform = {};
         create_perspective_transform(&perspective_transform, global_state.camera.near_plane_distance, global_state.camera.far_plane_distance, global_state.camera.fov_radians, global_state.camera.aspect_ratio, global_state.camera.looking_direction);
         
-        // Setup attribute stream, setup the shader and draw!
-        gl_bind_vao(&global_state.xyz_uv_nxnynz, &global_state.cube_xyz_uv_nxnynz);
-        
-        use_lighting_program(&global_state.lighting_program, global_state.container_texture_id, {}, &to_world_space, &to_camera_space, &perspective_transform, false, global_state.light_position, global_state.light_color, global_state.ambient_light_fraction, global_state.container_ambient_diffuse_specular_shinniness_map_id, global_state.default_ambient_diffuse_specular_shinniness);
-        GL(glDrawElements(GL_TRIANGLES, global_state.cube_xyz_uv_nxnynz.num_indices, GL_UNSIGNED_INT, 0));
-        
+        // DRAW
+        temp_draw_model(&global_state.lighting_program, global_state.test_model, &to_world_space, &to_camera_space, &perspective_transform, false, global_state.light_position, global_state.light_colors);
         to_world_space = HMM_Translate(global_state.light_position) * HMM_Scale({0.05f, 0.05f, 0.05f});
-        hmm_v4 light_color = {global_state.light_color.X, global_state.light_color.Y, global_state.light_color.Z, 1.0f};
-        use_lighting_program(&global_state.lighting_program, 0, light_color, &to_world_space, &to_camera_space, &perspective_transform, true, {}, {}, .0f,  0, {});
-        GL(glDrawElements(GL_TRIANGLES, global_state.cube_xyz_uv_nxnynz.num_indices, GL_UNSIGNED_INT, 0));
+        //hmm_v4 light_color = {global_state.light_color.X, global_state.light_color.Y, global_state.light_color.Z, 1.0f};
+        temp_draw_model(&global_state.lighting_program,global_state.test_cube_model, &to_world_space, &to_camera_space, &perspective_transform, true, global_state.light_position, global_state.light_colors);
         
         frame_end(window, &global_state);
         

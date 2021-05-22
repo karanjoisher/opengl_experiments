@@ -1,31 +1,21 @@
-[] Implement and understand perspective projection
-{
-    [x] Create perspective projection matrix and use it to render the cube
-    [x] Add position control and then rotation control to the camera so that it behaves like a "scene" camera
-    [] Consider adding an actual scene camera (we will be able to see "game" cameras in "scene" view as)
-}
+[] Consider adding an actual scene camera (we will be able to see "game" cameras in "scene" view as)
 
-[~] Render a cube
-{
-    [X] Setup vertex and fragment shaders
-    [~] Setup textures
-    {
-        [] Consider adding mipmaps
-    }
-}
-
-[X] Fix Aspect Ratio, it should render a cube not a cuboid
 [~] Add position and rotation control for the cube
 {
     [] Add mouse controlled position control (something like holding space and then dragging to move the object) and object rotation control (like in any 3d model viewer). Currently it is driven by DearImGui form fields which does the job but is cumbersome to use.
 }
 
-[X] Debugging shaders using framebuffers
+[~] 3d model loading using Assimp
 {
-    [X] Setup framebuffer
-    [X] Figure out how to properly set viewport inorder to correctly blit the framebuffer texture to screen
-    [X] Debug normals and lighting code using the Debug FBO
+    [~] Materials and textures, for now only basic materials that have diffuse, specular and normal maps.
     {
-        [X] Verified normals, vertex coords, diffuse and specular lighting factors.
+        [~] Make sure that where ever we return null or 0 in our model code we handle it properly: Implemented but not tested
     }
+    [] Refer render.h for comments on issues with current model loading code. Try to resolve those issues!
+}
+
+[] Memory management
+{
+    [] Currently i don't have a clear picture of how I would handle memory as I don't have a good use case. For now I have allocated a fixed memory block for the entire lifetime of application, there is no way to free parts of memory block, defrag etc. Think about a system that servers our use case and replace the current bare bones system.
+    [] Asset streaming: Refer render.h to see issues surrounding assets required by 3d Models
 }

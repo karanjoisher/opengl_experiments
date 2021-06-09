@@ -44,6 +44,6 @@ void gl_log_errors(char *function_invocation_expression, char *file, s32 line);
 GLInterleavedAttributesVAO gl_create_interleaved_attributes_vao(GLAttributeFormat *attribute_formats, u32 num_attributes);
 GLVertexAttributesData gl_create_vertex_attributes_data(void *vertex_data, u32 vertex_data_size, void *index_data, u32 index_data_size);
 void gl_bind_vao(GLInterleavedAttributesVAO *vao, GLVertexAttributesData *attributes_data);
-GLuint gl_create_program(char *vertex_source, char *fragment_source);
+GLuint gl_create_program(char *vertex_source, char *fragment_source, char *geometry_source);
 GLuint gl_create_texture2d(char *image_path );
 void gl_set_uniform_1i(GLuint program_id, char *uniform_name, s32 value);

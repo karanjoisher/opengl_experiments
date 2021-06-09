@@ -12,6 +12,7 @@
         [~] Make sure that where ever we return null or 0 in our model code we handle it properly: Implemented but not tested
     }
     [] Refer render.h for comments on issues with current model loading code. Try to resolve those issues!
+    [] Debug imgui tree to view material details
 }
 
 [] Memory management

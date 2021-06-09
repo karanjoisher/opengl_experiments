@@ -8,6 +8,8 @@
 struct State
 {
     LightingProgram lighting_program;
+    SkyboxProgram skybox_program;
+    DebugNormalVisualizationProgram debug_normal_visualization_program;
     GLuint texture_blit_program;
     
     GLInterleavedAttributesVAO xyz_uv_nxnynz;
@@ -32,6 +34,11 @@ struct State
     
     hmm_v3 light_colors[MAX_LIGHT_COLORS];
     hmm_v3 light_position;
+    
+    GLuint skybox_cubemap_id;
+    f32 skybox_cube_scale;
+    
+    f32 debug_normal_scale;
     
     // NOTE(Karan): These properties correspond to creation of a floating point framebuffer which can be used to debug vectors as it provides  negative values as well (default framebuffer clips negative values to 0)
     b32 enable_debug_fbo;

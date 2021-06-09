@@ -169,6 +169,9 @@ Model *temp_load_obj(char* filename, Memory *memory, GLInterleavedAttributesVAO 
             aiMaterial *ai_material = scene->mMaterials[i];
             
             Material *material = model->materials + i;
+            s32 name_len = len_cstring(ai_material->GetName().C_Str());
+            material->name = PUSH_ARRAY(memory, char, name_len + 1);
+            COPY(ai_material->GetName().C_Str(), material->name, name_len + 1);
             
             // Get base colors for all material types
             aiGetMaterialColor(ai_material, AI_MATKEY_COLOR_DIFFUSE,  (aiColor4D*)&material->base_colors[aiTextureType_DIFFUSE]);
@@ -391,7 +394,7 @@ Model *temp_load_obj(char* filename, Memory *memory, GLInterleavedAttributesVAO 
     return model;
 }
 
-void temp_draw_node_tree(LightingProgram* lighting_program, Model *model, Node *node, hmm_mat4 *cummulated_transforms_from_root_to_parent, hmm_mat4* to_world_space, hmm_mat4 *to_camera_space, hmm_mat4* perspective_transform, bool is_lighting_disabled, hmm_v3 light_position, hmm_v3 light_colors[MAX_LIGHT_COLORS])
+void temp_draw_node_tree(Model *model, Node *node, hmm_mat4 *cummulated_transforms_from_root_to_parent, ProgramType program_type, void *program_data)
 {
     
     if(node)
@@ -408,21 +411,39 @@ void temp_draw_node_tree(LightingProgram* lighting_program, Model *model, Node *
                 if(model->materials && model->materials + material_index) material = model->materials + material_index;
                 
                 gl_bind_vao(&(mesh->vertex_attributes_data_format_vao), &(mesh->vertex_attributes_data));
-                use_lighting_program(lighting_program, &cummulated_transforms_from_root_to_node, to_world_space, to_camera_space, perspective_transform, material, is_lighting_disabled, light_position, light_colors);
+                
+                
+                switch(program_type)
+                {
+                    case LIGHTING_PROGRAM:
+                    {
+                        LightingProgramData *data = (LightingProgramData*)program_data;
+                        use_lighting_program(data->program, &cummulated_transforms_from_root_to_node, data->to_world_space, data->to_camera_space, data->perspective_transform, material, data->is_lighting_disabled, data->light_position, data->light_colors, data->skybox_cubemap_id);
+                    }break;
+                    case DEBUG_NORMAL_VISUALIZATION_PROGRAM:
+                    {
+                        DebugNormalVisualizationProgramData *data = (DebugNormalVisualizationProgramData*)program_data;
+                        use_debug_normal_visualization_program(data->program, &cummulated_transforms_from_root_to_node, data->to_world_space, data->to_camera_space, data->perspective_transform, data->vector_length);
+                    }break;
+                    default:
+                    {
+                        ASSERT(false, "Invalid program type:%d while drawing model", program_type); 
+                    }
+                }
+                
                 GL(glDrawElements(GL_TRIANGLES, mesh->vertex_attributes_data.num_indices, GL_UNSIGNED_INT, 0));
             }
         }
         
         for(s32 i = 0; i < node->num_children; i++)
         {
-            temp_draw_node_tree(lighting_program, model, node->children + i, &cummulated_transforms_from_root_to_node, to_world_space, to_camera_space, perspective_transform,  is_lighting_disabled, light_position, light_colors);
+            temp_draw_node_tree(model, node->children + i, &cummulated_transforms_from_root_to_node, program_type, program_data);
         }
     }
 }
 
-void temp_draw_model(LightingProgram *lighting_program, Model *model, hmm_mat4* to_world_space, hmm_mat4 *to_camera_space, hmm_mat4* perspective_transform, bool is_lighting_disabled, hmm_v3 light_position, hmm_v3 light_colors[MAX_LIGHT_COLORS])
+void temp_draw_model(Model *model, ProgramType program_type, void *program_data)
 {
-    
     hmm_mat4 identity = HMM_Mat4d(1.0f);
-    temp_draw_node_tree(lighting_program, model, model->root, &identity, to_world_space, to_camera_space, perspective_transform, is_lighting_disabled, light_position, light_colors);
+    temp_draw_node_tree(model, model->root, &identity, program_type, program_data);
 }

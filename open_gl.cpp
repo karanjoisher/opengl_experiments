@@ -81,20 +81,30 @@ void gl_bind_vao(GLInterleavedAttributesVAO *vao, GLVertexAttributesData *attrib
     }
 }
 
-GLuint gl_create_program(char *vertex_source, char *fragment_source)
+GLuint gl_create_program(char *vertex_source, char *fragment_source, char *geometry_source)
 {
-    GLuint vs, fs, program_id;
+    GLuint vs, gs = 0, fs, program_id;
+    GL(program_id = glCreateProgram());
     
     GL(vs = glCreateShader(GL_VERTEX_SHADER));
     GL(glShaderSource(vs, 1, &vertex_source, 0));
     GL(glCompileShader(vs));
     
+    
     GL(fs = glCreateShader(GL_FRAGMENT_SHADER));
     GL(glShaderSource(fs, 1, &fragment_source, 0));
     GL(glCompileShader(fs));
     
-    GL(program_id = glCreateProgram());
+    
+    if(geometry_source)
+    {
+        GL(gs = glCreateShader(GL_GEOMETRY_SHADER));
+        GL(glShaderSource(gs, 1, &geometry_source, 0));
+        GL(glCompileShader(gs));
+    }
+    
     GL(glAttachShader(program_id, vs));
+    if(geometry_source) GL(glAttachShader(program_id, gs));
     GL(glAttachShader(program_id, fs));
     GL(glLinkProgram(program_id));
     
@@ -113,6 +123,12 @@ GLuint gl_create_program(char *vertex_source, char *fragment_source)
         GL(glGetShaderInfoLog(fs, sizeof(errors), &ignored, errors));
         LOG_ERR("Fragment shader compilation error: %s\n", errors);
         
+        if(geometry_source)
+        {
+            GL(glGetShaderInfoLog(gs, sizeof(errors), &ignored, errors));
+            LOG_ERR("Geometry shader compilation error: %s\n", errors);
+        }
+        
         GL(glGetProgramInfoLog(program_id, sizeof(errors), &ignored, errors));
         LOG_ERR("Program linking error: %s\n", errors);
         
@@ -121,6 +137,7 @@ GLuint gl_create_program(char *vertex_source, char *fragment_source)
     
     GL(glDeleteShader(vs));
     GL(glDeleteShader(fs));
+    if(geometry_source)GL(glDeleteShader(gs));
     
     return program_id;
 }

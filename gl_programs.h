@@ -26,7 +26,27 @@ struct LightingProgram
     GLuint is_lighting_disabled;
     GLuint light_colors;
     GLuint ambient_light_fraction;
+    GLuint skybox_sampler;
 };
 
+struct SkyboxProgram
+{
+    GLuint program_id;
+    GLuint to_camera_space;
+    GLuint perspective_projection;
+};
+
+struct DebugNormalVisualizationProgram
+{
+    GLuint program_id;
+    GLuint mesh_transform;
+    GLuint to_world_space;
+    GLuint to_camera_space;
+    GLuint perspective_projection;
+    GLuint vector_length;
+};
+
+
 void use_texture_blit_program(GLuint program_id, GLuint texture_id);
-void use_lighting_program(LightingProgram *program, hmm_mat4 *to_world_space, hmm_mat4 *to_camera_space, hmm_mat4 *to_model_root_space, hmm_mat4 *perspective_transform, Material* material,  bool is_lighting_disabled, hmm_v3 light_position, hmm_v3 light_colors[MAX_LIGHT_COLORS]);
+void use_lighting_program(LightingProgram *program, hmm_mat4 *mesh_transform, hmm_mat4 *to_world_space, hmm_mat4 *to_camera_space, hmm_mat4 *perspective_transform, Material* material,  bool is_lighting_disabled, hmm_v3 light_position, hmm_v3 light_colors[MAX_LIGHT_COLORS], GLuint skybox_cubemap_id);
+void use_debug_normal_visualization_program(DebugNormalVisualizationProgram *program, hmm_mat4 *mesh_transform, hmm_mat4 *to_world_space, hmm_mat4 *to_camera_space, hmm_mat4 *perspective_transform, f32 vector_length);

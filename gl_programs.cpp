@@ -43,6 +43,7 @@ fs_texture_uv = vs_texture_uv;
 #define GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS 32
 #define MAX_TEXTURE_OPERATIONS 13
 #define MAX_MATERIAL_TEXTURE_TYPES 18
+#define MAX_SAMPLER_UNITS 32
 #define aiTextureType_DIFFUSE 1
 #define aiTextureType_SPECULAR 2
 #define aiTextureType_AMBIENT 3
@@ -81,7 +82,7 @@ uniform vec4 base_colors[MAX_MATERIAL_TEXTURE_TYPES];
 
 uniform int num_sampler_units;
 // layout(binding=0) Binds first sampler in this array to UNIT 0, second sampler to UNIT 1 and so on...
-layout(binding=0) uniform sampler2D texture2d_samplers[GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS];
+layout(binding=0) uniform sampler2D texture2d_samplers[MAX_SAMPLER_UNITS];
 
 uniform int num_texture_ops[MAX_MATERIAL_TEXTURE_TYPES];
 uniform TextureOp texture_ops[MAX_MATERIAL_TEXTURE_TYPES][MAX_TEXTURE_OPERATIONS];
@@ -89,6 +90,8 @@ uniform TextureOp texture_ops[MAX_MATERIAL_TEXTURE_TYPES][MAX_TEXTURE_OPERATIONS
 uniform int is_lighting_disabled;
 uniform vec3 light_colors[MAX_LIGHT_COLORS];
 uniform float ambient_light_fraction;
+
+uniform samplerCube skybox;
 
 out vec4 FragColor;
 
@@ -170,7 +173,9 @@ void main()
     
     vec4 color = diffuse_color + ambient_color + specular_color;
     vec3 normal = vec3(0.0f, 0.0f, 0.0f);
-        if(is_lighting_disabled == 0)
+    
+    vec4 reflected_skybox = vec4(1.0f, 1.0f, 1.0f, 1.0f);
+    if(is_lighting_disabled == 0)
     {
         if(normal_map_color.r == 0.0f && normal_map_color.g == 0.0f && normal_map_color.b == 0.0f){
             normal = normalize(vertex_normal_in_camera_space);
@@ -181,6 +186,11 @@ void main()
         normal = normalize((to_camera_from_local_space * vec4(normal.xyz, 0.0f)).xyz);
         }
         
+        // Reflection
+        vec3 camera_to_vertex = vertex_pos_in_camera_space;
+        vec3 camera_to_vertex_reflected = reflect(normalize(camera_to_vertex), normal);
+         reflected_skybox = 0.5 * texture(skybox, camera_to_vertex_reflected);
+         
         // Ambient light
         vec4 reflected_ambient = ambient_color * vec4(light_colors[AMBIENT_LIGHT_COLOR], 1.0f);
         
@@ -206,14 +216,14 @@ void main()
         }
         
         // Final Phong light
-        color = reflected_ambient + reflected_diffuse + reflected_specular;
+        color = reflected_skybox + reflected_ambient + reflected_diffuse + reflected_specular;
     }
     
     FragColor = color;
 }
 )FOO";
     
-    program->program_id = gl_create_program(vertex_source, fragment_source);
+    program->program_id = gl_create_program(vertex_source, fragment_source, 0);
     
     GL(program->mesh_transform = glGetUniformLocation(program->program_id, "mesh_transform"));
     GL(program->to_world_space = glGetUniformLocation(program->program_id, "to_world_space"));
@@ -225,27 +235,28 @@ void main()
     GL(program->num_sampler_units = glGetUniformLocation(program->program_id, "num_sampler_units"));
     GL(program->num_texture_ops = glGetUniformLocation(program->program_id, "num_texture_ops"));
     
-    char texture_ops_str[64] = {};
+    char temp_str[64] = {};
     for(u32 i = 0; i < aiTextureType_UNKNOWN; i++)
     {
         for(u32 j = 0; j < MAX_TEXTURE_OPERATIONS; j++)
         {
-            snprintf(texture_ops_str, 64, "texture_ops[%d][%d].sampler_unit\0", i, j);
-            GL(program->texture_ops[i][j].sampler_unit = glGetUniformLocation(program->program_id, texture_ops_str));
-            snprintf(texture_ops_str, 64, "texture_ops[%d][%d].texture_blend\0", i, j);
-            GL(program->texture_ops[i][j].texture_blend = glGetUniformLocation(program->program_id, texture_ops_str));
-            snprintf(texture_ops_str, 64, "texture_ops[%d][%d].uv_channel\0", i, j);
-            GL(program->texture_ops[i][j].uv_channel = glGetUniformLocation(program->program_id, texture_ops_str));
-            snprintf(texture_ops_str, 64, "texture_ops[%d][%d].operation\0", i, j);
-            GL(program->texture_ops[i][j].operation = glGetUniformLocation(program->program_id, texture_ops_str));
+            snprintf(temp_str, 64, "texture_ops[%d][%d].sampler_unit\0", i, j);
+            GL(program->texture_ops[i][j].sampler_unit = glGetUniformLocation(program->program_id, temp_str));
+            snprintf(temp_str, 64, "texture_ops[%d][%d].texture_blend\0", i, j);
+            GL(program->texture_ops[i][j].texture_blend = glGetUniformLocation(program->program_id, temp_str));
+            snprintf(temp_str, 64, "texture_ops[%d][%d].uv_channel\0", i, j);
+            GL(program->texture_ops[i][j].uv_channel = glGetUniformLocation(program->program_id, temp_str));
+            snprintf(temp_str, 64, "texture_ops[%d][%d].operation\0", i, j);
+            GL(program->texture_ops[i][j].operation = glGetUniformLocation(program->program_id, temp_str));
         }
     }
     
     GL(program->is_lighting_disabled = glGetUniformLocation(program->program_id, "is_lighting_disabled"));
     GL(program->light_colors = glGetUniformLocation(program->program_id, "light_colors"));
+    GL(program->skybox_sampler = glGetUniformLocation(program->program_id, "skybox"));
 }
 
-void use_lighting_program(LightingProgram *program, hmm_mat4 *mesh_transform, hmm_mat4 *to_world_space, hmm_mat4 *to_camera_space, hmm_mat4 *perspective_transform, Material* material,  bool is_lighting_disabled, hmm_v3 light_position, hmm_v3 light_colors[MAX_LIGHT_COLORS])
+void use_lighting_program(LightingProgram *program, hmm_mat4 *mesh_transform, hmm_mat4 *to_world_space, hmm_mat4 *to_camera_space, hmm_mat4 *perspective_transform, Material* material,  bool is_lighting_disabled, hmm_v3 light_position, hmm_v3 light_colors[MAX_LIGHT_COLORS], GLuint skybox_cubemap_id)
 {
     // TODO(Karan): This function can probably take in a VAO spec and the Vertex Attribute stream and bind them here i.e. this function can take in values required to setup its vertex input. 
     
@@ -259,11 +270,18 @@ void use_lighting_program(LightingProgram *program, hmm_mat4 *mesh_transform, hm
     
     GL(glUniform4fv(program->base_colors, aiTextureType_UNKNOWN, material->base_colors[0].Elements));
     GL(glUniform1i(program->num_sampler_units, material->num_sampler_units));
+    
     for(s32 i = 0; i < material->num_sampler_units; i++)
     {
         GL(glActiveTexture(GL_TEXTURE0 + i)); 
         GL(glBindTexture(GL_TEXTURE_2D, material->sampler_units_to_texture_id[i]));
     }
+    
+    s32 skybox_sampler_unit = material->num_sampler_units;
+    GL(glActiveTexture(GL_TEXTURE0 + skybox_sampler_unit)); 
+    GL(glBindTexture(GL_TEXTURE_2D, 0));
+    GL(glBindTexture(GL_TEXTURE_CUBE_MAP, skybox_cubemap_id));
+    GL(glUniform1i(program->skybox_sampler, skybox_sampler_unit));
     
     GL(glUniform1iv(program->num_texture_ops, aiTextureType_UNKNOWN, material->num_texture_ops));
     for(u32 i = 0; i < aiTextureType_UNKNOWN; i++)
@@ -316,7 +334,7 @@ GLuint create_texture_blit_program()
     }
     )FOO";
     
-    GLuint program_id = gl_create_program(vertex_source, fragment_source);
+    GLuint program_id = gl_create_program(vertex_source, fragment_source, 0);
     gl_set_uniform_1i(program_id, "texture2d_sampler", 0);
     return program_id;
 }
@@ -327,4 +345,158 @@ void use_texture_blit_program(GLuint program_id, GLuint texture_id)
     GL(glUseProgram(program_id));
     GL(glActiveTexture(GL_TEXTURE0)); 
     GL(glBindTexture(GL_TEXTURE_2D, texture_id));
+}
+
+
+void create_skybox_program(SkyboxProgram* program)
+{
+    char *vertex_source = R"FOO(
+    #version 430 core
+    
+    layout (location = 0) in vec3 pos;
+    
+    uniform mat4 to_camera_space;
+    uniform mat4 perspective_projection;
+    
+    out vec3 skybox_sample_dir;
+    
+    void main()
+    {
+    skybox_sample_dir = pos;
+    vec3 pos_in_camera_space = (to_camera_space * vec4(pos.xyz, 0.0f)).xyz;
+    gl_Position = perspective_projection * vec4(pos_in_camera_space.xyz, 1.0f);
+    }
+    
+    )FOO";
+    
+    char *fragment_source = R"FOO(
+    #version 430 core
+    
+    in vec3 skybox_sample_dir;
+    out vec4 FragColor;
+    uniform samplerCube skybox;
+    
+    void main()
+    {
+    FragColor = texture(skybox, skybox_sample_dir);
+    }
+    )FOO";
+    
+    program->program_id = gl_create_program(vertex_source, fragment_source, 0);
+    GL(program->to_camera_space = glGetUniformLocation(program->program_id, "to_camera_space"));
+    GL(program->perspective_projection = glGetUniformLocation(program->program_id, "perspective_projection"));
+    
+    gl_set_uniform_1i(program->program_id, "skybox", 0);
+}
+
+void use_skybox_program(SkyboxProgram *program, hmm_mat4 *to_camera_space, hmm_mat4* perspective_projection, GLuint skybox_cubemap_id)
+{
+    GL(glUseProgram(program->program_id));
+    GL(glUniformMatrix4fv(program->to_camera_space, 1, GL_FALSE, (GLfloat*)to_camera_space->Elements));
+    GL(glUniformMatrix4fv(program->perspective_projection, 1, GL_FALSE, (GLfloat*)(perspective_projection->Elements)));
+    
+    GL(glActiveTexture(GL_TEXTURE0)); 
+    GL(glBindTexture(GL_TEXTURE_CUBE_MAP, skybox_cubemap_id));
+}
+
+
+void create_debug_normal_visualization_program(DebugNormalVisualizationProgram *program)
+{
+    char *vertex_source = R"FOO(
+    #version 430 core
+    
+layout (location = 0) in vec3 vs_local_space_pos;
+layout (location = 1) in vec2 vs_texture_uv;
+layout (location = 2) in vec3 vs_normal;
+
+uniform mat4 mesh_transform;
+uniform mat4 to_world_space;
+uniform mat4 to_camera_space;
+uniform mat4 perspective_projection;
+
+out VS_OUT {
+    vec3 vertex_normal_in_camera_space;
+} vs_out;
+
+void main()
+{
+mat4 to_camera_from_local_space = (to_camera_space * to_world_space  * mesh_transform);
+
+  vs_out.vertex_normal_in_camera_space = (to_camera_from_local_space * vec4(vs_normal, 0.0f)).xyz;
+ //vertex_normal_in_camera_space = mat3(transpose(inverse(to_camera_space * to_world_space))) * vs_normal;
+ 
+gl_Position =  perspective_projection * to_camera_from_local_space * vec4(vs_local_space_pos.xyz, 1.0f);
+}
+
+)FOO";
+    
+    char *geometry_source = R"FOO(
+    #version 430 core
+    
+    layout (triangles) in;
+    layout (line_strip, max_vertices = 6) out;
+    
+in VS_OUT {
+    vec3 vertex_normal_in_camera_space;
+} gs_in[];
+
+uniform float vector_length;
+
+void generate_vector(vec4 origin, vec3 direction, float length)
+    {
+    gl_Position = origin;
+    EmitVertex();
+    gl_Position = origin + (vec4(direction, 0.0f) * length);
+    EmitVertex();
+    EndPrimitive();
+}
+
+    void main()
+    {
+    vec3 normal = normalize(gs_in[0].vertex_normal_in_camera_space);
+    generate_vector(gl_in[0].gl_Position, normal, vector_length);
+    normal = normalize(gs_in[1].vertex_normal_in_camera_space);
+    generate_vector(gl_in[1].gl_Position, normal, vector_length);
+    normal = normalize(gs_in[2].vertex_normal_in_camera_space);
+    generate_vector(gl_in[2].gl_Position, normal, vector_length);
+    }
+    )FOO";
+    
+    
+    char *fragment_source = R"FOO(
+    #version 430 core
+    
+out vec4 FragColor;
+
+    void main()
+    {
+    vec3 vector_color = vec3(1.0f, 0.0f, 0.0f);
+    FragColor = vec4(vector_color, 1.0f);
+    }
+    )FOO";
+    
+    program->program_id = gl_create_program(vertex_source, fragment_source, geometry_source);
+    
+    GL(program->mesh_transform = glGetUniformLocation(program->program_id, "mesh_transform"));
+    GL(program->to_world_space = glGetUniformLocation(program->program_id, "to_world_space"));
+    GL(program->to_camera_space = glGetUniformLocation(program->program_id, "to_camera_space"));
+    GL(program->perspective_projection = glGetUniformLocation(program->program_id, "perspective_projection"));
+    
+    GL(program->vector_length = glGetUniformLocation(program->program_id, "vector_length"));
+    //GL(program->vector_color = glGetUniformLocation(program->program_id, "vector_color"));
+}
+
+void use_debug_normal_visualization_program(DebugNormalVisualizationProgram *program, hmm_mat4 *mesh_transform, hmm_mat4 *to_world_space, hmm_mat4 *to_camera_space, hmm_mat4 *perspective_transform, f32 vector_length)
+{
+    GL(glUseProgram(program->program_id));
+    
+    GL(glUniformMatrix4fv(program->to_camera_space, 1, GL_FALSE, (GLfloat*)to_camera_space->Elements));
+    GL(glUniformMatrix4fv(program->perspective_projection, 1, GL_FALSE, (GLfloat*)(perspective_transform->Elements)));
+    
+    GL(glUniformMatrix4fv(program->mesh_transform, 1, GL_FALSE, (GLfloat*)mesh_transform->Elements));
+    GL(glUniformMatrix4fv(program->to_world_space, 1, GL_FALSE, (GLfloat*)to_world_space->Elements));
+    GL(glUniformMatrix4fv(program->to_camera_space, 1, GL_FALSE, (GLfloat*)to_camera_space->Elements));
+    GL(glUniformMatrix4fv(program->perspective_projection, 1, GL_FALSE, (GLfloat*)(perspective_transform->Elements)));
+    
+    GL(glUniform1f(program->vector_length, vector_length));
 }

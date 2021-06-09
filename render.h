@@ -3,7 +3,6 @@
 #include "memory.h"
 #include "open_gl.h"
 
-
 // TODO(Karan): Randomly selected constants, in future models should not be limited by these constants.
 #define MAX_TEXTURES_PER_MODEL 64
 #define MAX_TEXTURE_OPERATIONS 13
@@ -30,6 +29,12 @@ enum LightColor
     SPECULAR_LIGHT_COLOR,
     AMBIENT_LIGHT_COLOR,
     MAX_LIGHT_COLORS
+};
+
+enum ProgramType
+{
+    LIGHTING_PROGRAM,
+    DEBUG_NORMAL_VISUALIZATION_PROGRAM
 };
 
 /* DILEMMA(Karan): Camera structure design dilemma
@@ -132,11 +137,36 @@ struct TextureOp
 
 struct Material
 {
+    char *name;
     hmm_vec4 base_colors[aiTextureType_UNKNOWN];
     s32 num_sampler_units;
     GLuint *sampler_units_to_texture_id;
     s32 num_texture_ops[aiTextureType_UNKNOWN];
     TextureOp *texture_ops[aiTextureType_UNKNOWN];
+};
+
+struct LightingProgram;
+struct LightingProgramData
+{
+    LightingProgram *program;
+    hmm_mat4 *to_world_space; 
+    hmm_mat4 *to_camera_space; 
+    hmm_mat4 *perspective_transform;
+    bool is_lighting_disabled; 
+    hmm_v3 light_position; 
+    hmm_v3 light_colors[MAX_LIGHT_COLORS]; 
+    GLuint skybox_cubemap_id;
+};
+
+struct DebugNormalVisualizationProgram;
+struct DebugNormalVisualizationProgramData
+{
+    DebugNormalVisualizationProgram* program;
+    hmm_mat4 *to_world_space; 
+    hmm_mat4 *to_camera_space; 
+    hmm_mat4 *perspective_transform;
+    f32 vector_length;
+    hmm_v3 vector_color;
 };
 
 struct Model
@@ -147,4 +177,3 @@ struct Model
     s32 num_materials;
     Material *materials;
 };
-

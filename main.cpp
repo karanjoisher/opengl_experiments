@@ -85,6 +85,9 @@ GLFWwindow* startup(State* state, u32 window_width, f32 aspect_ratio, char* mode
     
     // Create Shaders
     create_lighting_program(&(state->lighting_program));
+    create_skybox_program(&(state->skybox_program));
+    create_debug_normal_visualization_program(&(state->debug_normal_visualization_program));
+    state->debug_normal_scale = 0.0f;
     state->texture_blit_program = create_texture_blit_program();
     
     // Cube properties
@@ -160,6 +163,34 @@ GLFWwindow* startup(State* state, u32 window_width, f32 aspect_ratio, char* mode
     // Test Assimp
     state->test_model = temp_load_obj(model_file_path, &(state->memory), state->xyz_uv_nxnynz);
     state->test_cube_model = temp_load_obj("cube.obj", &(state->memory), state->xyz_uv_nxnynz);
+    
+    // Test skybox
+    char *r_l_t_bo_ba_f_skybox_image_paths[] = {"skybox\\right.jpg", "skybox\\left.jpg", "skybox\\top.jpg", "skybox\\bottom.jpg", "skybox\\front.jpg", "skybox\\back.jpg"};
+    
+    stbi_set_flip_vertically_on_load(false);
+    GL(glGenTextures(1, &state->skybox_cubemap_id));
+    GL(glBindTexture(GL_TEXTURE_CUBE_MAP, state->skybox_cubemap_id));
+    for(s32 i = 0; i < ARRAY_LENGTH(r_l_t_bo_ba_f_skybox_image_paths); i++)
+    {
+        s32 image_width, image_height, image_channels;
+        u8 *image_data = stbi_load(r_l_t_bo_ba_f_skybox_image_paths[i], &image_width, &image_height, &image_channels, 0);
+        if(image_data)
+        {
+            GL(glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0,GL_RGB, image_width, image_height, 0, GL_RGB,GL_UNSIGNED_BYTE, image_data));
+            stbi_image_free(image_data);
+        }
+        else
+        {
+            LOG_ERR("ERROR!\n");
+        }
+    }
+    GL(glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
+    GL(glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+    GL(glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
+    GL(glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
+    GL(glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE));
+    GL(glBindTexture(GL_TEXTURE_CUBE_MAP, 0));
+    state->skybox_cube_scale = 1.0f;
     
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
@@ -279,9 +310,9 @@ int main(int argc, char* argv[])
         ImGui::DragFloat3("model pos", global_state.model_translation.Elements, 0.01f, 0.0f, 0.0f);
         ImGui::DragFloat3("model rot", global_state.model_rotation.Elements, 1.00f, 0.0f, 0.0f);
         ImGui::DragFloat("model scale", &global_state.model_scale, 0.01f, 0.0f, 0.0f); 
+        ImGui::DragFloat("normal length", &global_state.debug_normal_scale, 0.01f, 0.0f, 0.0f);
         ImGui::BulletText("model tree:");
         imgui_model_tree_control(global_state.test_model->root);
-        
         
         // Camera properties
         ImGui::Dummy(ImVec2(0.0f, 20.0f)); 
@@ -312,6 +343,7 @@ int main(int argc, char* argv[])
         ImGui::DragFloat3("ambient light color", global_state.light_colors[AMBIENT_LIGHT_COLOR].Elements, 0.01f, 0.0f, 0.0f);
         ImGui::DragFloat3("diffuse light color", global_state.light_colors[DIFFUSE_LIGHT_COLOR].Elements, 0.01f, 0.0f, 0.0f);
         ImGui::DragFloat3("specular light color", global_state.light_colors[SPECULAR_LIGHT_COLOR].Elements, 0.01f, 0.0f, 0.0f);
+        ImGui::DragFloat("skybox cube scale", &global_state.skybox_cube_scale, 0.01f, 0.0f, 0.0f); 
         
         //// Actual processing
         
@@ -363,10 +395,43 @@ int main(int argc, char* argv[])
         create_perspective_transform(&perspective_transform, global_state.camera.near_plane_distance, global_state.camera.far_plane_distance, global_state.camera.fov_radians, global_state.camera.aspect_ratio, global_state.camera.looking_direction);
         
         // DRAW
-        temp_draw_model(&global_state.lighting_program, global_state.test_model, &to_world_space, &to_camera_space, &perspective_transform, false, global_state.light_position, global_state.light_colors);
-        to_world_space = HMM_Translate(global_state.light_position) * HMM_Scale({0.05f, 0.05f, 0.05f});
+        hmm_mat4 skybox_to_camera_space = to_camera_space * HMM_Mat4d(global_state.skybox_cube_scale);
+        gl_bind_vao(&global_state.test_cube_model->meshes->vertex_attributes_data_format_vao, &global_state.test_cube_model->meshes->vertex_attributes_data);
+        use_skybox_program(&global_state.skybox_program, &skybox_to_camera_space, &perspective_transform, global_state.skybox_cubemap_id);
+        GL(glDisable(GL_DEPTH_TEST));
+        GL(glDrawElements(GL_TRIANGLES, global_state.test_cube_model->meshes->vertex_attributes_data.num_indices, GL_UNSIGNED_INT, 0));
+        
+        GL(glEnable(GL_DEPTH_TEST));
+        LightingProgramData lighting_program_data = {};
+        lighting_program_data.program = &global_state.lighting_program;
+        lighting_program_data.to_world_space = &to_world_space;
+        lighting_program_data.to_camera_space = &to_camera_space;
+        lighting_program_data.perspective_transform = &perspective_transform;
+        lighting_program_data.is_lighting_disabled = false;
+        lighting_program_data.light_position = global_state.light_position;
+        lighting_program_data.light_colors[AMBIENT_LIGHT_COLOR] = global_state.light_colors[AMBIENT_LIGHT_COLOR];
+        lighting_program_data.light_colors[DIFFUSE_LIGHT_COLOR] = global_state.light_colors[DIFFUSE_LIGHT_COLOR];
+        lighting_program_data.light_colors[SPECULAR_LIGHT_COLOR] = global_state.light_colors[SPECULAR_LIGHT_COLOR];
+        lighting_program_data.skybox_cubemap_id = global_state.skybox_cubemap_id;
+        
+        temp_draw_model(global_state.test_model, LIGHTING_PROGRAM, &lighting_program_data);
+        
+        hmm_mat4 to_world_space_for_light = HMM_Translate(global_state.light_position) * HMM_Scale({0.05f, 0.05f, 0.05f});
+        lighting_program_data.to_world_space = &to_world_space_for_light;
+        lighting_program_data.is_lighting_disabled = true;
         //hmm_v4 light_color = {global_state.light_color.X, global_state.light_color.Y, global_state.light_color.Z, 1.0f};
-        temp_draw_model(&global_state.lighting_program,global_state.test_cube_model, &to_world_space, &to_camera_space, &perspective_transform, true, global_state.light_position, global_state.light_colors);
+        temp_draw_model(global_state.test_cube_model, LIGHTING_PROGRAM, &lighting_program_data);
+        
+        if(global_state.debug_normal_scale > 0.0f) 
+        {
+            DebugNormalVisualizationProgramData debug_normal_visualization_program_data = {};
+            debug_normal_visualization_program_data.program = &global_state.debug_normal_visualization_program;
+            debug_normal_visualization_program_data.to_world_space = &to_world_space;
+            debug_normal_visualization_program_data.to_camera_space = &to_camera_space;
+            debug_normal_visualization_program_data.perspective_transform = &perspective_transform;
+            debug_normal_visualization_program_data.vector_length = global_state.debug_normal_scale;
+            temp_draw_model(global_state.test_model, DEBUG_NORMAL_VISUALIZATION_PROGRAM, &debug_normal_visualization_program_data);
+        }
         
         frame_end(window, &global_state);
         
